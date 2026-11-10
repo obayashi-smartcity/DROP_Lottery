@@ -4,6 +4,7 @@
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
   const SESSION_KEY = 'drop_lottery_staff';
+  const NAME_KEY = 'drop_lottery_staff_name'; // 入力したスタッフ名を端末に覚えておく
 
   let session = null;
   let scanner = null;
@@ -61,7 +62,10 @@
     btn.disabled = true;
     $('#loginError').textContent = '';
     try {
-      const res = await L.call('staffLogin', { staffName: $('#staffName').value.trim(), pin: $('#pin').value });
+      const typedName = $('#staffName').value.trim();
+      const res = await L.call('staffLogin', { staffName: typedName, pin: $('#pin').value });
+      if (typedName) L.lsSet(NAME_KEY, typedName);
+      else { try { localStorage.removeItem(NAME_KEY); } catch (err) { /* ignore */ } }
       session = { token: res.token, name: res.staffName, exp: Date.now() + res.expiresInSec * 1000 - 60000 };
       saveSession(session);
       $('#pin').value = '';
@@ -269,6 +273,8 @@
   $('#stockRefresh').addEventListener('click', loadStock);
 
   /* ---------- 起動 ---------- */
+
+  $('#staffName').value = L.lsGet(NAME_KEY) || '';
 
   session = loadSession();
   if (session) enterMain();

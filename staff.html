@@ -6,20 +6,24 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
   <title>景品引換（スタッフ用）</title>
+  <meta name="theme-color" content="#F3E9E2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=DM+Sans:opsz,wght@9..40,400..800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="staff">
   <main class="wrap">
-    <header class="head">
-      <p class="eyebrow">STAFF</p>
-      <h1>景品引換</h1>
-      <p class="muted small" id="staffInfo" hidden></p>
+    <header class="brand">
+      <p class="brand-kicker">みんまち<span>DROP</span> STAFF</p>
+      <h1 class="brand-title">景品引換</h1>
+      <p class="staff-info" id="staffInfo" hidden></p>
     </header>
 
     <!-- ログイン -->
     <section data-view="login" class="card">
       <form id="loginForm" class="form">
-        <label>スタッフ名<input id="staffName" type="text" maxlength="20" autocomplete="name" required></label>
+        <label>スタッフ名（任意）<input id="staffName" type="text" maxlength="20" autocomplete="name" placeholder="例：細川"></label>
         <label>PIN<input id="pin" type="password" inputmode="numeric" autocomplete="off" required></label>
         <button class="btn btn-primary" type="submit">ログイン</button>
         <p class="error" id="loginError" role="alert"></p>

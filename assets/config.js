@@ -10,7 +10,7 @@ window.LOTTERY_CONFIG = {
   STATUS_POLL_MS: 30000,
 
   // 抽選演出の最短時間（ミリ秒）
-  DRAW_MIN_ANIMATION_MS: 1800,
+  DRAW_MIN_ANIMATION_MS: 3000,
 
   // 在庫一覧の自動更新間隔（ミリ秒）
   STOCK_POLL_MS: 30000,

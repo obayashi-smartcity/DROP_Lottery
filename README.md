@@ -4,7 +4,7 @@
 
 | 画面 | URL | 使う人 |
 | --- | --- | --- |
-| 抽選 | `https://obayashi-smartcity.github.io/DROP_Lottery/?c=<イベントコード>` | 参加者（会場のQRから開く） |
+| 抽選 | `https://obayashi-smartcity.github.io/DROP_Lottery/` | 参加者（Config の EVENT_CODE を入れた場合は `?c=<コード>` 付きURLのみ） |
 | 景品引換 | `https://obayashi-smartcity.github.io/DROP_Lottery/staff.html` | 引換所のスタッフ |
 
 ## ファイル構成

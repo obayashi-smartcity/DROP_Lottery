@@ -91,7 +91,9 @@ function apiInfo_(req) {
     redeemDeadline: iso_(cfg.REDEEM_DEADLINE),
     now: iso_(now),
   };
-  if (req.eventCode !== undefined) res.codeValid = String(req.eventCode) === cfg.EVENT_CODE;
+  // EVENT_CODE が空なら合言葉なし（QRなしでも参加できる）
+  res.codeRequired = !!cfg.EVENT_CODE;
+  res.codeValid = !cfg.EVENT_CODE || String(req.eventCode || '') === cfg.EVENT_CODE;
   return res;
 }
 
@@ -101,7 +103,7 @@ function apiDraw_(req) {
   const eventCode = String(req.eventCode || '').slice(0, 64);
   const fp = String(req.fp || '').replace(/[^0-9a-f]/gi, '').slice(0, 64);
   const cfg = getConfig_();
-  if (eventCode !== cfg.EVENT_CODE) throw appError_('INVALID_CODE', 'イベントコードが正しくありません。会場のQRコードから開き直してください');
+  if (cfg.EVENT_CODE && eventCode !== cfg.EVENT_CODE) throw appError_('INVALID_CODE', 'イベントコードが正しくありません。会場のQRコードから開き直してください');
 
   return withLock_(() => {
     const ss = ss_();
@@ -165,9 +167,8 @@ function apiStatus_(req) {
 /* ============================== スタッフ向け ============================== */
 
 function apiStaffLogin_(req) {
-  const name = String(req.staffName || '').trim().slice(0, 20);
+  const name = String(req.staffName || '').trim().slice(0, 20) || 'スタッフ'; // 名前は任意
   const pin = String(req.pin || '');
-  if (!name) throw appError_('BAD_REQUEST', 'スタッフ名を入力してください');
   const expected = PropertiesService.getScriptProperties().getProperty('STAFF_PIN');
   if (!expected) throw appError_('NOT_CONFIGURED', 'スタッフPINが未設定です（setupSecrets を実行してください）');
 
