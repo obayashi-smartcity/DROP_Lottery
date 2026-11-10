@@ -22,7 +22,7 @@
     if (text !== undefined) coreText.textContent = text;
   }
 
-  const DRAW_LINES = ['まぜています', '運をあつめています', 'もうすぐです', 'いよいよ…！'];
+  const DRAW_LINES = ['MIXING...', 'GATHERING LUCK...', 'ALMOST THERE...', 'HERE IT COMES!'];
 
   function startDrawingText() {
     const el = $('#drawingText');

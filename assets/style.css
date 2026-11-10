@@ -175,6 +175,7 @@ button { font-family: inherit; }
 .pill-done { background: var(--brown); }
 
 .status-text { margin: 8px 0 0; font-size: 16px; font-weight: 700; letter-spacing: .1em; }
+.status-text-en { font-family: var(--font-display); font-size: 20px; font-weight: 400; letter-spacing: .06em; }
 .dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
 
