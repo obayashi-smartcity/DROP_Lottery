@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>景品引換（スタッフ用）</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="staff">
+  <main class="wrap">
+    <header class="head">
+      <p class="eyebrow">STAFF</p>
+      <h1>景品引換</h1>
+      <p class="muted small" id="staffInfo" hidden></p>
+    </header>
+
+    <!-- ログイン -->
+    <section data-view="login" class="card">
+      <form id="loginForm" class="form">
+        <label>スタッフ名<input id="staffName" type="text" maxlength="20" autocomplete="name" required></label>
+        <label>PIN<input id="pin" type="password" inputmode="numeric" autocomplete="off" required></label>
+        <button class="btn btn-primary" type="submit">ログイン</button>
+        <p class="error" id="loginError" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- メイン -->
+    <section data-view="main" hidden>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="scan" type="button" role="tab">引換</button>
+        <button class="tab" data-tab="stock" type="button" role="tab">在庫</button>
+        <button class="tab tab-right" id="logoutBtn" type="button">ログアウト</button>
+      </nav>
+
+      <div data-panel="scan" class="card">
+        <div id="reader" class="reader"></div>
+        <div class="row">
+          <button id="cameraBtn" class="btn" type="button">カメラを起動</button>
+        </div>
+        <form id="codeForm" class="form inline">
+          <label class="grow">引換コード（QRが読めないとき）
+            <input id="codeInput" type="text" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="ABC-DEF">
+          </label>
+          <button class="btn" type="submit">確認</button>
+        </form>
+        <p class="error" id="scanError" role="alert"></p>
+      </div>
+
+      <div data-panel="stock" class="card" hidden>
+        <div class="row between">
+          <h2 class="h2">在庫一覧</h2>
+          <button id="stockRefresh" class="btn btn-small" type="button">更新</button>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>景品</th><th>初期数</th><th>当選</th><th>引換</th><th>手元残</th><th>くじ箱残</th></tr></thead>
+            <tbody id="stockBody"></tbody>
+          </table>
+        </div>
+        <dl class="totals" id="totals"></dl>
+        <div id="fpWarn" class="warn" hidden></div>
+        <p class="muted small" id="stockUpdated"></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- 確認ダイアログ -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-body card center">
+      <p class="badge" id="sheetBadge"></p>
+      <h2 class="prize" id="sheetPrize"></h2>
+      <p class="muted" id="sheetDetail"></p>
+      <div class="row center">
+        <button id="redeemBtn" class="btn btn-primary btn-xl" type="button">引き渡し完了</button>
+      </div>
+      <button id="sheetClose" class="btn" type="button">閉じて次へ</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/staff.js"></script>
+</body>
+</html>

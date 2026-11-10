@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>抽選会</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="head">
+      <p class="eyebrow">LOTTERY</p>
+      <h1 id="eventName">抽選会</h1>
+    </header>
+
+    <section data-view="loading" class="card center">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>読み込み中…</p>
+    </section>
+
+    <section data-view="nocode" class="card center" hidden>
+      <h2>会場のQRコードから開いてください</h2>
+      <p class="muted">抽選は会場に掲示しているQRコードから参加できます。</p>
+    </section>
+
+    <section data-view="closed" class="card center" hidden>
+      <h2>現在は受付時間外です</h2>
+      <p class="muted" id="closedText"></p>
+    </section>
+
+    <section data-view="ready" class="card center" hidden>
+      <p class="lead">抽選は<strong>1台につき1回</strong>です。</p>
+      <button id="drawBtn" class="btn btn-primary btn-xl" type="button">抽選する</button>
+      <p class="muted small">ボタンを押すと結果が確定します。</p>
+    </section>
+
+    <section data-view="drawing" class="card center" hidden>
+      <div class="drum" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="lead">抽選中…</p>
+    </section>
+
+    <section data-view="win" class="card center win" hidden>
+      <p class="badge badge-win">当たり</p>
+      <h2 class="prize" id="prizeName"></h2>
+      <div id="redeemBox">
+        <div id="qr" class="qr" role="img" aria-label="引換用QRコード"></div>
+        <p class="code-label">引換コード</p>
+        <p class="code" id="redeemCode"></p>
+        <p class="muted small">引換所でこの画面をスタッフにお見せください。</p>
+        <p class="muted small" id="deadlineText"></p>
+      </div>
+      <div id="redeemedBox" hidden>
+        <p class="badge badge-done">引換済み</p>
+        <p class="muted" id="redeemedText"></p>
+      </div>
+    </section>
+
+    <section data-view="lose" class="card center" hidden>
+      <p class="badge badge-lose">はずれ</p>
+      <h2>残念…</h2>
+      <p class="muted">ご参加ありがとうございました。</p>
+    </section>
+
+    <section data-view="error" class="card center" hidden>
+      <h2>エラー</h2>
+      <p id="errorText"></p>
+      <button id="retryBtn" class="btn" type="button">もう一度試す</button>
+    </section>
+
+    <p class="foot muted small">この端末の抽選結果はこの画面にいつでも表示されます。</p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/lottery.js"></script>
+</body>
+</html>
