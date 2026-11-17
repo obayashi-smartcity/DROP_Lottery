@@ -1,49 +1,63 @@
 # DROP_Lottery
 
-イベント向けの簡易抽選システムです。画面は GitHub Pages、API は Google Apps Script（GAS）、データは Google スプレッドシートに置きます。当落判定・在庫・引換の判定はすべて GAS で行い、画面は表示と API 呼び出しの制御だけを担います。
+イベント向けの簡易抽選システムです。画面は GitHub Pages、API は Google Apps Script（GAS）、データは Google スプレッドシートに置きます。当落判定・在庫・引換の判定はすべて GAS で行い、画面は表示と API 呼び出しだけを担います。
 
 ## 流れ
 
 ```
-LP（index.html） → アンケート（survey.html） → 抽選（lottery.html） → 結果
+LP（index.html） → アンケート（survey.html） → 抽選（lottery.html） → 結果・引換
 ```
 
-1. **LP**：ユーザーIDとポイント数を受け取り、ポイントに合うボタンだけを有効にする。
-   遷移元サイトからの受け渡し方法が決まるまでは手入力。`index.html?uid=<ID>&pt=<ポイント>` で開くと入力欄に入った状態になる（パラメータ名は `assets/config.js` で変更可）。
-2. **アンケート**：全ボタン共通。回答はアンケートGASがスプレッドシートに記録する。
-3. **抽選**：選んだボタンの当選確率で当落を決め、当たりなら景品の残りから割り当てる。
-4. **結果**：当たりなら引換パスワードの入力欄を表示する。引換所でスタッフが口頭でパスワードを伝え、当選者が自分の画面で入力すると「引換済み」になる。スタッフはその画面を見て景品を渡す。
+1. **LP**：ユーザーIDとポイント数を受け取り、ポイントに合うボタンを1つだけ有効にする。
+   遷移元サイトからの受け渡し方法が決まるまでは手入力。`index.html?uid=<ID>&pt=<ポイント>` で開くと入力欄に値が入った状態になる（パラメータ名は `assets/config.js` で変更可）。
+2. **アンケート**：全ボタン共通。回答はアンケートGASが `DROP_Lottery_Survey` に記録する。
+3. **抽選**：選んだボタンの当選確率で当落を決め、当たりなら景品の残りから割り当てる。景品が残っていなければはずれ。
+4. **結果・引換**：当たりなら引換パスワードの入力欄を表示する。引換所でスタッフが口頭でパスワードを伝え、当選者が自分の画面で入力すると「引換済み」になる。スタッフはその画面を見て景品を渡す。
 
-- 抽選はユーザーIDごとに1回。抽選済みのIDで来た場合は「抽選は完了しています」と結果を表示する。
-- LP を通らずにアンケート・抽選ページを開いた場合は LP に戻す。
+- 抽選はユーザーIDごとに1回。抽選済みのIDで LP に来ると「このユーザーIDの抽選は完了しています」と結果を表示する。
+- LP を通らずにアンケート・抽選ページを直接開いた場合は LP に戻す。
+
+初期設定のボタン（`Tiers` シートで変更可）：
+
+| ポイント | 有効になるボタン |
+| --- | --- |
+| 4以下 | なし（抽選不可） |
+| 5〜9 | ボタン1 |
+| 10〜24 | ボタン2 |
+| 25〜49 | ボタン3 |
+| 50〜 | ボタン4 |
+
+## 画面
 
 | 画面 | URL | 使う人 |
 | --- | --- | --- |
 | LP | `https://obayashi-smartcity.github.io/DROP_Lottery/` | 参加者 |
-| スタッフ画面 | `https://obayashi-smartcity.github.io/DROP_Lottery/staff.html` | 引換所のスタッフ（在庫・ボタン別の集計を見る。引換コードでの引換も可能） |
+| スタッフ画面 | `https://obayashi-smartcity.github.io/DROP_Lottery/staff.html` | スタッフ（在庫・ボタン別の集計を見る。PIN でログイン） |
+
+スタッフ画面の「引換」タブ（QR 読取・引換コード入力）は旧方式の名残です。今の参加者画面には QR・引換コードを表示しないため、通常は使いません。
 
 ## ファイル構成
 
 ```
 index.html              LP（ユーザーID・ポイント入力、ボタン選択）
 survey.html             アンケート
-lottery.html            抽選・結果・完了画面
-staff.html              スタッフの引換・在庫画面
+lottery.html            抽選・結果・引換・完了画面
+staff.html              スタッフ画面
 assets/config.js        GAS の URL、URL パラメータ名などの設定
 assets/survey-config.js アンケートの設問
-assets/api.js           GAS 呼び出し、画面間の状態、共通処理
+assets/api.js           GAS 呼び出し、画面間の状態（sessionStorage）、共通処理
 assets/lp.js            LP の処理
 assets/survey.js        アンケートの処理
-assets/lottery.js       抽選画面の処理
+assets/lottery.js       抽選・引換の処理
 assets/staff.js         スタッフ画面の処理
 assets/style.css        スタイル
 ```
 
-GAS とスプレッドシートは、共有ドライブ「00_GAS」の「抽選システム」フォルダにあります。
+GAS とスプレッドシートは、共有ドライブ「00_GAS」の「抽選システム」フォルダにあります（GAS のソースはこのリポジトリには置いていません）。
 
 | 種類 | 名前 | 役割 |
 | --- | --- | --- |
-| GAS | `DROP_Lottery` | 抽選・引換の API |
+| GAS | `DROP_Lottery` | 抽選・引換・在庫の API |
 | GAS | `DROP_Lottery_Survey_API` | アンケート回答の記録 |
 | スプレッドシート | `DROP_Lottery_DB` | 設定・景品・ボタン・抽選結果 |
 | スプレッドシート | `DROP_Lottery_Survey` | アンケート回答（Responses シート） |
@@ -52,49 +66,59 @@ GAS とスプレッドシートは、共有ドライブ「00_GAS」の「抽選�
 
 | 変えたいもの | 場所 |
 | --- | --- |
-| ボタンの数・名前・ポイントの閾値・当選確率 | `DROP_Lottery_DB` の **Tiers** シート（1行＝1ボタン。最大ポイントが空欄なら上限なし。確率は %） |
-| 景品と数 | `DROP_Lottery_DB` の **Prizes** シート（行を増やしたら GAS の `setupSheets` を実行して集計式を入れる） |
-| イベント名・受付時間・引換期限・受付停止 | `DROP_Lottery_DB` の **Config** シート |
+| ボタンの数・名前・ポイントの範囲・当選確率 | `DROP_Lottery_DB` の **Tiers** シート（1行＝1ボタン。上から順に表示。最大ポイントが空欄なら上限なし。確率は %） |
+| 景品と数 | `DROP_Lottery_DB` の **Prizes** シート（行を増やしたら抽選GASの `setupSheets` を実行して集計式を入れる） |
+| イベント名・受付期間・引換期限・受付停止 | `DROP_Lottery_DB` の **Config** シート |
 | 引換パスワード | `DROP_Lottery_DB` の **Config** シートの `REDEEM_PASSWORD`（初期値 0884。先頭の0が消えないよう文字列で入れる） |
-| アンケートの設問 | `assets/survey-config.js`（設問IDを増やすと回答シートに列が自動で追加される） |
+| アンケートの設問 | `assets/survey-config.js`（新しい設問IDは Responses シートに列が自動で追加される） |
 | 遷移元から受け取る URL パラメータ名 | `assets/config.js` の `PARAM_USER_ID`・`PARAM_POINTS` |
+| GAS の URL | `assets/config.js` の `GAS_URL`（抽選）・`SURVEY_GAS_URL`（アンケート） |
 
 スプレッドシートの変更はすぐに反映されます（GAS の再デプロイは不要）。
 
-## DROP_Lottery_DB のシート
+## スプレッドシートの中身
+
+### DROP_Lottery_DB
 
 | シート | 内容 |
 | --- | --- |
-| Config | イベント設定 |
+| Config | イベント設定（キーと値） |
 | Prizes | 景品。当選数・引換数・手元残数・当選可能残は式で自動計算 |
 | Tiers | ボタン（tierId・ボタン名・最小/最大ポイント・当選確率） |
-| Users | ユーザーIDごとの抽選結果（1人1行） |
-| Winners | 当選者（引換コード・引換状態・userId） |
-| Logs | 操作ログ |
+| Users | ユーザーIDごとの抽選結果（1人1行）。ポイント・ボタン・deviceId も記録 |
+| Winners | 当選者（ticketId・景品・引換状態・引換日時・userId） |
+| Logs | 操作ログ（抽選・引換・エラーなど） |
 
-Tickets・Devices シートは旧方式（くじ箱・端末単位）のもので、今は使っていません。
+### DROP_Lottery_Survey
 
-## セットアップ
+Responses シートに1回答1行。受信日時・userId・ポイント・tierId・ボタン名・deviceId・画面から渡されたパラメータ（JSON）・回答（JSON）と、設問IDごとの列が並びます。
 
-### 1. 抽選GAS（DROP_Lottery）
+## デプロイ
+
+画面は GitHub Pages、API は GAS のウェブアプリです。
+
+### GAS をウェブアプリとして公開する
+
+1. デプロイ > 新しいデプロイ > 種類「ウェブアプリ」。
+2. 次のユーザーとして実行：自分 / アクセスできるユーザー：全員。
+3. 表示された URL（`…/exec`）を `assets/config.js` に貼る。
+
+コードを直したときは「デプロイを管理」で既存のデプロイを編集し、バージョンを「新バージョン」にすると URL が変わりません。保存しただけでは公開中の API には反映されません。
+
+現在 `assets/config.js` に入っているのは、どちらも説明が「test: …」のデプロイです。抽選GASの旧デプロイ（説明「無題」）は旧画面用で、今の画面とは互換性がありません。
+
+### 初回のセットアップ（新しい環境で作り直す場合）
+
+抽選GAS（DROP_Lottery）：
 
 1. 関数 `setupSecrets` を実行する（初回は権限の承認が必要）。実行ログに表示されるスタッフ PIN を控える。PIN はプロジェクトの設定 > スクリプト プロパティの `STAFF_PIN` で変更できる。
-2. 関数 `setupSheets` を実行する。Tiers・Users シートと Prizes の集計式ができる（何度実行してもデータは消えない）。
-3. デプロイ > 新しいデプロイ > 種類「ウェブアプリ」。次のユーザーとして実行：自分 / アクセスできるユーザー：全員。
-4. 表示された URL（`…/exec`）を `assets/config.js` の `GAS_URL` に貼る。
+2. 関数 `setupSheets` を実行する。Tiers・Users シート、Config の `REDEEM_PASSWORD`、Prizes の集計式ができる（何度実行してもデータは消えない）。
+3. ウェブアプリとしてデプロイし、URL を `GAS_URL` に貼る。
 
-### 2. アンケートGAS（DROP_Lottery_Survey_API）
+アンケートGAS（DROP_Lottery_Survey_API）：
 
-1. 関数 `setupSheet` を実行する（初回は権限の承認が必要）。DROP_Lottery_Survey に Responses シートができる。
-2. 抽選GASと同じ設定でウェブアプリとしてデプロイし、URL を `assets/config.js` の `SURVEY_GAS_URL` に貼る。
-
-Responses シートには、受信日時・userId・ポイント・tierId・ボタン名・deviceId・画面から渡されたパラメータ（JSON）・回答（JSON）と、設問IDごとの列が並びます。
-
-コードを直したときは「デプロイを管理」から既存のデプロイを編集して新しいバージョンにすると、URL が変わりません。
-
-### 3. GitHub Pages
-
-リポジトリの Settings > Pages で、Branch を `main`、フォルダを `/ (root)` にする。
+1. 関数 `setupSheet` を実行する（初回は権限の承認が必要）。Responses シートができる。
+2. ウェブアプリとしてデプロイし、URL を `SURVEY_GAS_URL` に貼る。
 
 ## 不正防止の仕組み
 
@@ -112,11 +136,13 @@ Responses シートには、受信日時・userId・ポイント・tierId・ボ�
 ## テストのやり直し
 
 1. 抽選GASのスクリプト プロパティに `ALLOW_RESET` = `yes` を追加する。
-2. 関数 `resetAllData` を実行する（Winners・Users・Logs を消去。`ALLOW_RESET` は自動で消える）。
-3. アンケート回答は DROP_Lottery_Survey の Responses シートの行を手で消す。
+2. 関数 `resetAllData` を実行する（Winners・Users・Logs の2行目以降を消去。`ALLOW_RESET` は自動で消える）。
+3. アンケート回答は DROP_Lottery_Survey の Responses シートの2行目以降を手で消す。
+
+参加者側のブラウザに残った画面間の状態は、タブを閉じれば消えます。
 
 ## 注意
 
-- このリポジトリに秘密情報（PIN、署名鍵）を置かないでください。どちらも GAS のスクリプト プロパティにあります。
+- このリポジトリに秘密情報（スタッフ PIN、署名鍵）を置かないでください。どちらも GAS のスクリプト プロパティにあります。引換パスワードは DB の Config シートにあります。
 - GAS の同時実行は1スクリプトあたり約30件までです。本番前に複数台で同時に抽選するテストをしてください。
 - CacheService の上限により、スタッフのログインは6時間で切れます。
