@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F3E9E2">
+  <title>アンケート</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=DM+Sans:opsz,wght@9..40,400..800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="lottery survey">
+  <main class="wrap">
+    <header class="brand">
+      <p class="brand-kicker">みんまち<span>DROP</span></p>
+      <h1 class="brand-title">アンケート</h1>
+    </header>
+
+    <section data-view="form" class="panel" hidden>
+      <div class="summary">
+        <span>ID <strong id="sumUser"></strong></span>
+        <span id="sumTier"></span>
+      </div>
+      <p class="lead center">アンケートに答えて、抽選に進みましょう。</p>
+      <form id="surveyForm" class="card survey-form" novalidate>
+        <div id="questions"></div>
+        <button id="submitBtn" class="btn btn-primary btn-xl" type="submit">回答して抽選へ進む</button>
+        <p class="error center" id="surveyError" role="alert"></p>
+      </form>
+    </section>
+
+    <section data-view="sending" class="panel center" hidden>
+      <p class="status-text">送信中<span class="dots"></span></p>
+    </section>
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/survey-config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/survey.js"></script>
+</body>
+</html>

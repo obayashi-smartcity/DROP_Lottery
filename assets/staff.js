@@ -183,7 +183,7 @@
     } else {
       badge.textContent = '未引換';
       badge.className = 'badge badge-ok';
-      $('#sheetDetail').textContent = `当選：${L.fmtDate(v.wonAt)}`;
+      $('#sheetDetail').textContent = `当選：${L.fmtDate(v.wonAt)}` + (v.userId ? ` ／ ID：${v.userId}` : '');
       canRedeem = true;
     }
     redeemBtn.hidden = !canRedeem;
@@ -237,15 +237,17 @@
       $('#stockBody').innerHTML = res.items.map((i) => `
         <tr class="${i.onHand <= 0 ? 'zero' : ''}">
           <td>${esc(i.name)}</td><td>${i.initial}</td><td>${i.won}</td><td>${i.redeemed}</td>
-          <td><strong>${i.onHand}</strong></td><td>${i.unusedInBox}</td>
+          <td><strong>${i.onHand}</strong></td><td>${i.remaining}</td>
         </tr>`).join('');
       const t = res.totals;
       $('#totals').innerHTML = `
         <div><dt>抽選数</dt><dd>${t.draws}</dd></div>
         <div><dt>当選数</dt><dd>${t.wins}</dd></div>
         <div><dt>引換数</dt><dd>${t.redeemed}</dd></div>
-        <div><dt>くじ箱残</dt><dd>${t.ticketsLeft}</dd></div>
+        <div><dt>当選可能残</dt><dd>${t.prizesLeft}</dd></div>
         <div><dt>再抽選の試み</dt><dd>${t.repeatRequests}</dd></div>`;
+      $('#tierBody').innerHTML = (res.tiers || []).map((x) => `
+        <tr><td>${esc(x.label)}</td><td>${x.prob}%</td><td>${x.draws}</td><td>${x.wins}</td></tr>`).join('');
       const warn = $('#fpWarn');
       if (res.fpDuplicates.length) {
         warn.innerHTML = `<strong>同じ特徴の端末から複数の抽選があります</strong>（同機種の別人の場合もあります）<br>` +
