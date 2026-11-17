@@ -141,11 +141,6 @@
       $('#redeemedText').textContent = res.redeemedAt ? `${L.fmtDate(res.redeemedAt)} に引き換えました` : '';
       stopPoll();
     } else {
-      const qr = qrcode(0, 'M');
-      qr.addData(res.qr);
-      qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
-      $('#redeemCode').textContent = L.fmtCode(res.redeemCode);
       $('#deadlineText').textContent = res.redeemDeadline ? `引換期限：${L.fmtDate(res.redeemDeadline)}` : '';
       startPoll();
     }
@@ -262,7 +257,31 @@
     }
   }
 
+  /** 当選者がスタッフから聞いたパスワードを入れて引き換える */
+  let redeeming = false;
+  async function redeem(e) {
+    e.preventDefault();
+    if (redeeming) return; // 二重送信防止
+    const pw = $('#redeemPw').value.trim();
+    if (!pw) { $('#redeemError').textContent = 'パスワードを入力してください'; return; }
+    redeeming = true;
+    $('#redeemBtn').disabled = true;
+    $('#redeemError').textContent = '';
+    try {
+      const res = await L.call('redeemSelf', { userId, password: pw });
+      $('#redeemPw').value = '';
+      vibrate([40, 30, 80]);
+      render(res);
+    } catch (err) {
+      $('#redeemError').textContent = err.message || '引き換えできませんでした';
+    } finally {
+      redeeming = false;
+      $('#redeemBtn').disabled = false;
+    }
+  }
+
   $('#drawBtn').addEventListener('click', draw);
+  $('#redeemForm').addEventListener('submit', redeem);
   $('#retryBtn').addEventListener('click', () => {
     if (!L.getFlow().tierId) { L.goTo('index.html'); return; }
     init();

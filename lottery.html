@@ -77,15 +77,20 @@
         <p class="result-label">当たり</p>
         <h2 class="prize" id="prizeName"></h2>
         <div id="redeemBox">
-          <div id="qr" class="qr" role="img" aria-label="引換用QRコード"></div>
-          <p class="code-label">引換コード</p>
-          <p class="code" id="redeemCode"></p>
-          <p class="muted small">引換所でこの画面をスタッフにお見せください。</p>
+          <p class="muted small">引換所でスタッフからパスワードを聞き、<br>この画面で入力してください。</p>
+          <form id="redeemForm" class="form redeem-form" novalidate>
+            <label>引換パスワード
+              <input id="redeemPw" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
+            </label>
+            <button id="redeemBtn" class="btn btn-primary btn-xl" type="submit">引き換える</button>
+            <p class="error" id="redeemError" role="alert"></p>
+          </form>
           <p class="muted small" id="deadlineText"></p>
         </div>
         <div id="redeemedBox" hidden>
           <p class="pill pill-done">引換済み</p>
           <p class="muted" id="redeemedText"></p>
+          <p class="muted small">この画面をスタッフに見せて、景品をお受け取りください。</p>
         </div>
       </div>
     </section>
@@ -112,7 +117,6 @@
     <p class="foot">抽選結果は、同じユーザーIDでいつでも確認できます。</p>
   </main>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
   <script src="assets/config.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/lottery.js"></script>

@@ -591,4 +591,6 @@ textarea.q-input { resize: vertical; }
   text-align: center;
 }
 #backBox { margin-top: 20px; }
+.redeem-form { margin: 14px 0 6px; text-align: left; }
+.redeem-form input { text-align: center; letter-spacing: .3em; font-size: 24px; font-weight: 700; }
 .tier-h { margin-top: 22px; font-size: 16px; }
