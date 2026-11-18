@@ -594,3 +594,164 @@ textarea.q-input { resize: vertical; }
 .redeem-form { margin: 14px 0 6px; text-align: left; }
 .redeem-form input { text-align: center; letter-spacing: .3em; font-size: 24px; font-weight: 700; }
 .tier-h { margin-top: 22px; font-size: 16px; }
+
+/* =====================================================================
+   みんまちDROP for 中之島（drop.machiapps.com/nakanoshima）のトンマナに合わせる
+   ・ロゴ画像のヘッダー、ミディアムウェイトの見出し、詰め気味の字間
+   ・白地＋細いグレー枠のピル型ボタンに、ブラウンの丸い矢印アイコン
+   ・ラベル類はブラウン地に白文字のピル
+   ===================================================================== */
+
+:root {
+  --radius-card: 40px;
+  --beige-soft: #F8F2EE;
+  --arrow-white: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12h13M13 6l6 6-6 6' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+body { letter-spacing: .03em; }
+.wrap { padding-top: 20px; }
+
+/* ---------- ヘッダー ---------- */
+.brand { margin-bottom: 14px; }
+.brand-logo { display: block; width: 150px; height: auto; margin: 0 auto 12px; }
+.brand-sub {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 2px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brown);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.brand-title { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+.staff .brand-title { font-size: 20px; }
+
+/* ---------- 文字 ---------- */
+.lead { font-size: 18px; font-weight: 500; line-height: 1.8; letter-spacing: .04em; }
+.h2 { font-weight: 500; letter-spacing: -.02em; }
+.note, .foot { letter-spacing: .04em; }
+
+/* ---------- カード ---------- */
+.card { padding: 32px 24px; }
+
+/* ---------- ボタン：黒のピル＋ブラウンの丸矢印（抽選ボタンと同じ形） ---------- */
+.btn-xl.btn-primary {
+  position: relative;
+  min-height: 64px;
+  padding: 10px 64px;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  letter-spacing: .06em;
+}
+.btn-xl.btn-primary::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 46px;
+  height: 46px;
+  margin-top: -23px;
+  border-radius: 50%;
+  background: var(--brown) var(--arrow-white) center / 18px no-repeat;
+}
+.btn-xl.btn-primary:disabled::after { opacity: .6; }
+.btn { font-weight: 500; }
+
+/* ---------- LP のボタン（気分選択ボタンと同じ、白いピル＋丸矢印） ---------- */
+.tier-list { gap: 14px; }
+.tier,
+.tier:not(:disabled),
+.tier-c0:not(:disabled), .tier-c1:not(:disabled), .tier-c2:not(:disabled),
+.tier-c3:not(:disabled), .tier-c4:not(:disabled) {
+  position: relative;
+  justify-content: flex-start;
+  gap: 14px;
+  min-height: 80px;
+  padding: 10px 72px 10px 30px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+.tier::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 34px;
+  height: 34px;
+  margin-top: -17px;
+  border-radius: 50%;
+  background: var(--brown) var(--arrow-white) center / 16px no-repeat;
+}
+.tier-label { font-size: 20px; font-weight: 500; letter-spacing: -.02em; }
+.tier-range { font-size: 13px; font-weight: 500; color: var(--brown); letter-spacing: .02em; }
+.tier:disabled {
+  background: rgba(255, 255, 255, .45);
+  border-color: var(--line-soft);
+  color: var(--muted);
+}
+.tier:disabled .tier-range { color: var(--muted); }
+.tier:disabled::after { background-color: var(--line); opacity: .7; }
+
+/* ---------- ID・ポイントの表示（白いピル） ---------- */
+.summary {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 18px;
+  padding: 8px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+/* ---------- ラベル類（ブラウンのピル） ---------- */
+.result-label,
+.pill,
+.req,
+.done-note { background: var(--brown); color: #fff; font-weight: 500; }
+.result-label { padding: 4px 18px; font-size: 13px; letter-spacing: .06em; }
+.result-label-lose { background: var(--muted); }
+.req { font-weight: 500; }
+
+/* ---------- 結果 ---------- */
+.result-en {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--ink);
+  font-size: 38px;
+}
+.result-en-lose { color: var(--brown); font-size: 30px; }
+.prize { font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+
+/* ---------- 入力欄（白いピル） ---------- */
+.form label { font-weight: 500; }
+.form input {
+  border-radius: var(--radius-pill);
+  padding: 14px 24px;
+}
+.form input:focus,
+.q-input:focus { outline: 2px solid var(--brown); outline-offset: 1px; }
+.redeem-form input { letter-spacing: .3em; }
+
+/* ---------- アンケート ---------- */
+.q-label { font-weight: 500; font-size: 17px; letter-spacing: .02em; }
+.opt {
+  min-height: 52px;
+  padding: 10px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.opt:has(input:checked) { border-color: var(--brown); background: var(--beige-soft); }
+.opt input { accent-color: var(--brown); }
+select.q-input, input.q-input { border-radius: var(--radius-pill); padding: 12px 22px; }
+textarea.q-input { border-radius: 24px; padding: 14px 20px; }
+
+/* ---------- 抽選の演出 ---------- */
+.stage[data-state="win"] .stage-ring { border-color: var(--brown); }
+.summary[hidden] { display: none; }
+.form > *, .form label { min-width: 0; }
+.form input { width: 100%; min-width: 0; }
