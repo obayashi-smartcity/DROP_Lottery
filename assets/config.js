@@ -11,6 +11,10 @@ window.LOTTERY_CONFIG = {
   PARAM_USER_ID: 'uid',
   PARAM_POINTS: 'pt',
 
+  // 「スタンプラリーに戻る」ボタンの戻り先（空にするとボタンを表示しない）
+  // ※ 仮のURL。スタンプラリーのURLが決まったら差し替える
+  STAMP_RALLY_URL: 'https://drop.machiapps.com/nakanoshima/',
+
   // 通信のタイムアウト（ミリ秒）
   REQUEST_TIMEOUT_MS: 20000,
 

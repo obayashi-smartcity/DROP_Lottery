@@ -154,6 +154,12 @@
 
   function goTo(page) { location.replace(page); }
 
+  /** 「スタンプラリーに戻る」ボタン（.js-rally）に戻り先を入れる。未設定なら隠す */
+  document.querySelectorAll('.js-rally').forEach((a) => {
+    if (CFG.STAMP_RALLY_URL) a.href = CFG.STAMP_RALLY_URL;
+    else a.hidden = true;
+  });
+
   window.Lottery = {
     call, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet,
     getFlow, setFlow, clearFlow, tierForPoints, tierRangeText, goTo,

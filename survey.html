@@ -24,11 +24,19 @@
         <span>ID <strong id="sumUser"></strong></span>
         <span id="sumTier"></span>
       </div>
-      <p class="lead center">アンケートに答えて、抽選に進みましょう。</p>
+      <p class="lead center">スタンプラリーの感想を<br>お聞かせください。</p>
       <form id="surveyForm" class="card survey-form" novalidate>
         <div id="questions"></div>
-        <button id="submitBtn" class="btn btn-primary btn-xl" type="submit">回答して抽選へ進む</button>
         <p class="error center" id="surveyError" role="alert"></p>
+        <div class="center">
+          <button id="submitBtn" class="cta" type="submit">
+            <span>抽選する</span>
+            <span class="cta-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 12h12M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+          <p class="note">抽選は1人1回です。ボタンを押すと結果が確定します。</p>
+        </div>
       </form>
     </section>
 

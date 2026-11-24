@@ -23,7 +23,7 @@
     if (text !== undefined) coreText.textContent = text;
   }
 
-  const DRAW_LINES = ['MIXING...', 'GATHERING LUCK...', 'ALMOST THERE...', 'HERE IT COMES!'];
+  const DRAW_LINES = ['MIXING...', 'GATHERING LUCK...', 'ALMOST THERE...', 'Loading...'];
 
   function startDrawingText() {
     const el = $('#drawingText');
@@ -99,13 +99,13 @@
   async function playReveal(res) {
     const win = res.result === 'win';
     if (REDUCED) {
-      setStage(win ? 'win' : 'lose', win ? 'WIN' : '…');
+      setStage(win ? 'win' : 'lose', win ? '当選' : 'はずれ');
       return;
     }
     setStage('reveal');
     vibrate(30);
     await L.sleep(520);
-    setStage(win ? 'win' : 'lose', win ? 'WIN' : '…');
+    setStage(win ? 'win' : 'lose', win ? '当選' : 'はずれ');
     if (win) {
       vibrate([60, 40, 120]);
       confetti();
@@ -123,16 +123,23 @@
     document.title = name;
   }
 
-  /** 結果の表示（演出なし。再表示やポーリングでも使う） */
+  /**
+   * 結果の表示（演出なし。再表示やポーリングでも使う）
+   * result が 'lose' でも consolation が true なら、はずれ景品（ポストカードなど）と引換欄を出す
+   */
   function render(res) {
     setEventName(res.eventName);
     $('#backBox').hidden = false;
-    if (res.result !== 'win') {
-      setStage('lose', '…');
+    const consolation = res.result !== 'win' && !!res.consolation;
+    if (res.result !== 'win' && !consolation) {
+      setStage('lose', 'はずれ');
       L.show('lose');
       return;
     }
-    setStage('win', 'WIN');
+    setStage(consolation ? 'lose' : 'win', consolation ? 'はずれ' : '当選');
+    $('#resultHead').textContent = consolation ? 'はずれ' : '当選';
+    $('#resultHead').classList.toggle('result-en-lose', consolation);
+    $('#consolationLead').hidden = !consolation;
     $('#prizeName').textContent = res.prizeName;
     const redeemed = res.redeemStatus === '引換済み';
     $('#redeemBox').hidden = redeemed;
@@ -204,9 +211,8 @@
       } else if (!info.open) {
         showClosed(info);
       } else {
-        $('#readyTier').textContent = flow.tierLabel || '';
-        $('#drawBtn').disabled = false;
-        L.show('ready');
+        draw(); // アンケートの「抽選する」で来ているので、そのまま抽選する
+        return;
       }
     } catch (err) {
       showError(err);
@@ -216,7 +222,6 @@
   async function draw() {
     if (drawing) return; // 二重押し防止
     drawing = true;
-    $('#drawBtn').disabled = true;
     vibrate(15);
     setStage('drawing', '?');
     L.show('drawing');
@@ -243,7 +248,7 @@
         setStage('idle', '?');
         L.show('nocode');
       } else if (err.code === 'CLOSED') {
-        init();
+        try { showClosed(await L.call('info', { eventCode: flow.eventCode || '' })); } catch (e) { showClosed({}); }
       } else {
         // 通信が途中で切れても抽選は確定している場合があるので、状態を確認する
         try {
@@ -280,7 +285,6 @@
     }
   }
 
-  $('#drawBtn').addEventListener('click', draw);
   $('#redeemForm').addEventListener('submit', redeem);
   $('#retryBtn').addEventListener('click', () => {
     if (!L.getFlow().tierId) { L.goTo('index.html'); return; }
