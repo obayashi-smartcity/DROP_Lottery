@@ -23,17 +23,10 @@
     if (text !== undefined) coreText.textContent = text;
   }
 
-  const DRAW_LINES = ['MIXING...', 'GATHERING LUCK...', 'ALMOST THERE...', 'Loading...'];
-
+  /** 抽選中の表示（Loading... のまま） */
   function startDrawingText() {
-    const el = $('#drawingText');
-    let i = 0;
-    el.textContent = DRAW_LINES[0];
-    const t = setInterval(() => {
-      i = Math.min(i + 1, DRAW_LINES.length - 1);
-      el.textContent = DRAW_LINES[i];
-    }, 750);
-    return () => clearInterval(t);
+    $('#drawingText').textContent = 'Loading...';
+    return () => {};
   }
 
   function vibrate(pattern) {
@@ -139,7 +132,6 @@
     setStage(consolation ? 'lose' : 'win', consolation ? 'はずれ' : '当選');
     $('#resultHead').textContent = consolation ? 'はずれ' : '当選';
     $('#resultHead').classList.toggle('result-en-lose', consolation);
-    $('#consolationLead').hidden = !consolation;
     $('#prizeName').textContent = res.prizeName;
     const redeemed = res.redeemStatus === '引換済み';
     $('#redeemBox').hidden = redeemed;
@@ -148,7 +140,6 @@
       $('#redeemedText').textContent = res.redeemedAt ? `${L.fmtDate(res.redeemedAt)} に引き換えました` : '';
       stopPoll();
     } else {
-      $('#deadlineText').textContent = res.redeemDeadline ? `引換期限：${L.fmtDate(res.redeemDeadline)}` : '';
       startPoll();
     }
     L.show('win');
@@ -189,9 +180,6 @@
   async function init() {
     setStage('idle', '?');
     L.show('loading');
-    $('#sumUser').textContent = userId;
-    $('#sumTier').textContent = flow.tierLabel ? `${flow.tierLabel}（${Number(flow.points).toLocaleString('ja-JP')} pt）` : '';
-    $('#summary').hidden = false;
     deviceId = await L.getDeviceId().catch(() => '');
 
     try {

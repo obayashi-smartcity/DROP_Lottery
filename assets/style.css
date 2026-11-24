@@ -773,3 +773,4 @@ a.btn { text-decoration: none; }
 .tier-label { font-size: 17px; white-space: nowrap; }
 .tier-range { white-space: nowrap; }
 @media (max-width: 360px) { .tier-label { font-size: 15px; } }
+.redeem-note { margin: 4px 0 0; text-align: center; }

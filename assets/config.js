@@ -7,8 +7,9 @@ window.LOTTERY_CONFIG = {
   SURVEY_GAS_URL: 'https://script.google.com/macros/s/AKfycbxd_8nC9tJUyLXnqon1qpzALdbkYm5jVr_op9AAuRJnqM4t2x7QQckpRQr32pF6tIKF/exec',
 
   // 遷移元サイトから受け取る URL パラメータ名（仕様が決まったら合わせる）
-  // 例: index.html?uid=ABC123&pt=30 で開くと入力欄に入った状態で表示される
+  // 例: index.html?uid=ABC123&nn=たろう&pt=30 で開くと入力欄に入った状態で表示される
   PARAM_USER_ID: 'uid',
+  PARAM_NICKNAME: 'nn',
   PARAM_POINTS: 'pt',
 
   // 「スタンプラリーに戻る」ボタンの戻り先（空にするとボタンを表示しない）

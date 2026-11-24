@@ -149,7 +149,7 @@
   }
 
   function tierRangeText(t) {
-    return t.max === null || t.max === undefined ? `${t.min}pt〜` : `${t.min}〜${t.max}pt`;
+    return t.max === null || t.max === undefined ? `${t.min}スタンプ〜` : `${t.min}〜${t.max}スタンプ`;
   }
 
   function goTo(page) { location.replace(page); }

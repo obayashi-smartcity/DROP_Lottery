@@ -35,11 +35,6 @@
       <div class="stage-flash"></div>
     </div>
 
-    <div class="summary" id="summary" hidden>
-      <span>ID <strong id="sumUser"></strong></span>
-      <span id="sumTier"></span>
-    </div>
-
     <p class="done-note" id="doneNote" hidden>このユーザーIDの抽選は完了しています</p>
 
     <section data-view="loading" class="panel center">
@@ -57,24 +52,23 @@
     </section>
 
     <section data-view="drawing" class="panel center" hidden>
-      <p class="status-text status-text-en" id="drawingText" aria-live="polite">MIXING...</p>
+      <p class="status-text status-text-en" id="drawingText" aria-live="polite">Loading...</p>
     </section>
 
     <section data-view="win" class="panel center" hidden>
       <p class="result-en result-ja" id="resultHead">当選</p>
       <div class="card result-card">
-        <p class="muted" id="consolationLead" hidden>ざんねん、はずれでした。<br>はずれの方に、こちらをお渡しします。</p>
         <h2 class="prize" id="prizeName"></h2>
         <div id="redeemBox">
-          <p class="muted small">引換所でスタッフからパスワードを聞き、<br>この画面で入力してください。</p>
+          <p class="muted small">国立国際美術館B1階インフォメーションにお越しいただき、示されたパスワードを入力してください。</p>
           <form id="redeemForm" class="form redeem-form" novalidate>
             <label>引換パスワード
               <input id="redeemPw" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
             </label>
+            <p class="muted small redeem-note">ログイン済みの場合、抽選画面に進むとこの画面が表示されるようになります。</p>
             <button id="redeemBtn" class="btn btn-primary btn-xl" type="submit">引き換える</button>
             <p class="error" id="redeemError" role="alert"></p>
           </form>
-          <p class="muted small" id="deadlineText"></p>
         </div>
         <div id="redeemedBox" hidden>
           <p class="pill pill-done">引換済み</p>

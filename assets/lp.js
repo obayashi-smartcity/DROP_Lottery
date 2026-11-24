@@ -1,4 +1,4 @@
-// LP：ユーザーIDとポイント数 → ポイントに合うボタンを有効にする → アンケートへ
+// LP：ユーザーID・ニックネーム・スタンプ数 → スタンプ数に合うボタンを有効にする → アンケートへ
 (function () {
   const L = window.Lottery;
   const CFG = window.LOTTERY_CONFIG;
@@ -7,19 +7,20 @@
   const USER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/; // GAS 側と同じ
 
   let eventCode = '';
-  let current = null; // { userId, points }
+  let current = null; // { userId, nickname, points }
 
-  /** URL のパラメータ（イベントコード・ユーザーID・ポイント数）を読み、アドレスバーからは消す */
+  /** URL のパラメータ（イベントコード・ユーザーID・ニックネーム・スタンプ数）を読み、アドレスバーからは消す */
   function readParams() {
     const url = new URL(location.href);
     const p = url.searchParams;
     const out = {
       code: (p.get('c') || '').trim(),
       userId: (p.get(CFG.PARAM_USER_ID) || '').trim(),
+      nickname: (p.get(CFG.PARAM_NICKNAME) || '').trim().slice(0, 30),
       points: (p.get(CFG.PARAM_POINTS) || '').trim(),
     };
     if (out.code) L.lsSet(CODE_KEY, out.code);
-    ['c', CFG.PARAM_USER_ID, CFG.PARAM_POINTS].forEach((k) => p.delete(k));
+    ['c', CFG.PARAM_USER_ID, CFG.PARAM_NICKNAME, CFG.PARAM_POINTS].forEach((k) => p.delete(k));
     history.replaceState(null, '', url.pathname + (p.toString() ? '?' + p : '') + url.hash);
     return out;
   }
@@ -46,11 +47,11 @@
 
   function renderTiers(tiers, points) {
     const active = L.tierForPoints(tiers, points);
-    $('#sumUser').textContent = current.userId;
+    $('#sumNick').textContent = current.nickname;
     $('#sumPoints').textContent = points.toLocaleString('ja-JP');
     $('#tierLead').innerHTML = active
       ? '押せるボタンで抽選に進めます。'
-      : 'ポイントが足りないため、<br>今回は抽選に参加できません。';
+      : 'スタンプが足りないため、<br>今回は抽選に参加できません。';
 
     const list = $('#tierList');
     list.textContent = '';
@@ -72,6 +73,7 @@
   function choose(tier) {
     L.setFlow({
       userId: current.userId,
+      nickname: current.nickname,
       points: current.points,
       tierId: tier.id,
       tierLabel: tier.label,
@@ -81,8 +83,8 @@
     location.href = 'survey.html';
   }
 
-  async function start(userId, points) {
-    current = { userId, points };
+  async function start(userId, nickname, points) {
+    current = { userId, nickname, points };
     L.show('loading');
     try {
       const [status, info] = await Promise.all([
@@ -113,21 +115,24 @@
   $('#entryForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const userId = $('#userId').value.trim();
+    const nickname = $('#nickname').value.trim();
     const raw = $('#points').value.trim();
     const points = Number(raw);
     if (!USER_ID_RE.test(userId)) { showEntry('ユーザーIDを入力してください（英数字と _ . : @ - が使えます）'); return; }
-    if (raw === '' || !Number.isInteger(points) || points < 0) { showEntry('ポイント数を0以上の整数で入力してください'); return; }
-    start(userId, points);
+    if (!nickname || nickname.length > 30) { showEntry('ニックネームを30文字以内で入力してください'); return; }
+    if (raw === '' || !Number.isInteger(points) || points < 0) { showEntry('スタンプ数を0以上の整数で入力してください'); return; }
+    start(userId, nickname, points);
   });
 
   $('#changeBtn').addEventListener('click', () => showEntry(''));
-  $('#retryBtn').addEventListener('click', () => (current ? start(current.userId, current.points) : showEntry('')));
+  $('#retryBtn').addEventListener('click', () => (current ? start(current.userId, current.nickname, current.points) : showEntry('')));
 
   // 初期表示
   const params = readParams();
   eventCode = params.code || L.lsGet(CODE_KEY) || '';
   const flow = L.getFlow();
   $('#userId').value = params.userId || flow.userId || '';
+  $('#nickname').value = params.nickname || flow.nickname || '';
   $('#points').value = params.points || (flow.points != null ? flow.points : '');
   showEntry('');
 })();
