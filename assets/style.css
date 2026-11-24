@@ -760,10 +760,8 @@ textarea.q-input { border-radius: 24px; padding: 14px 20px; }
    v3.0：結果を日本語表記に、スタンプラリーに戻るボタン
    ===================================================================== */
 .result-ja { font-family: var(--font); font-weight: 700; letter-spacing: .08em; }
-.stage[data-state="win"] .core-text,
-.stage[data-state="lose"] .core-text { font-family: var(--font); font-weight: 700; }
-.stage[data-state="win"] .core-text { font-size: 24px; }
-.stage[data-state="lose"] .core-text { font-size: 20px; color: var(--brown); }
+.stage[data-state="win"] .core-text { font-size: 26px; }
+.stage[data-state="lose"] .core-text { font-size: 22px; color: var(--brown); }
 a.btn { text-decoration: none; }
 .rally-box { margin-top: 28px; }
 #backBox .btn { min-width: 240px; }

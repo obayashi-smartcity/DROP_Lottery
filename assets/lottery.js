@@ -92,13 +92,13 @@
   async function playReveal(res) {
     const win = res.result === 'win';
     if (REDUCED) {
-      setStage(win ? 'win' : 'lose', win ? '当選' : 'はずれ');
+      setStage(win ? 'win' : 'lose', win ? 'WIN' : 'LOSE');
       return;
     }
     setStage('reveal');
     vibrate(30);
     await L.sleep(520);
-    setStage(win ? 'win' : 'lose', win ? '当選' : 'はずれ');
+    setStage(win ? 'win' : 'lose', win ? 'WIN' : 'LOSE');
     if (win) {
       vibrate([60, 40, 120]);
       confetti();
@@ -125,11 +125,11 @@
     $('#backBox').hidden = false;
     const consolation = res.result !== 'win' && !!res.consolation;
     if (res.result !== 'win' && !consolation) {
-      setStage('lose', 'はずれ');
+      setStage('lose', 'LOSE');
       L.show('lose');
       return;
     }
-    setStage(consolation ? 'lose' : 'win', consolation ? 'はずれ' : '当選');
+    setStage(consolation ? 'lose' : 'win', consolation ? 'LOSE' : 'WIN');
     $('#resultHead').textContent = consolation ? 'はずれ' : '当選';
     $('#resultHead').classList.toggle('result-en-lose', consolation);
     $('#prizeName').textContent = res.prizeName;
@@ -278,7 +278,6 @@
     if (!L.getFlow().tierId) { L.goTo('index.html'); return; }
     init();
   });
-  $('#backBtn').addEventListener('click', () => { stopPoll(); L.clearFlow(); L.goTo('index.html'); });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && pollTimer) {
       L.call('status', { userId }).then((res) => { if (res.drawn) render(res); }).catch(() => {});
