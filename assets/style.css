@@ -780,9 +780,9 @@ a.btn { text-decoration: none; }
 .tier-c3:not(:disabled), .tier-c4:not(:disabled) { flex-wrap: wrap; column-gap: 12px; row-gap: 0; line-height: 1.4; }
 
 /* =====================================================================
-   画面の高さが小さいスマホ（iPhone SE など）：スクロールを減らすために詰める
+   スマホ（幅430px以下。iPhone SE〜Pro Max、Android の大半）：スクロールを減らすために詰める
    ===================================================================== */
-@media (max-width: 430px) and (max-height: 760px) {
+@media (max-width: 430px) {
   .wrap { padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); }
 
   /* ヘッダー */
@@ -805,9 +805,10 @@ a.btn { text-decoration: none; }
   .summary { margin-bottom: 8px; padding: 4px 18px; font-size: 12px; }
 
   /* LP：入力欄とボタン */
-  .lp .form { margin-top: 12px; gap: 10px; }
-  .form label { gap: 4px; }
-  .form input { padding: 10px 20px; }
+  .lp .form { margin-top: 10px; gap: 8px; }
+  .form label { gap: 2px; }
+  .form input { padding: 9px 20px; }
+  .lp .card { padding: 18px 16px; }
   .tier-list { gap: 10px; margin: 12px 0 4px; }
   .tier,
   .tier:not(:disabled),
@@ -828,19 +829,19 @@ a.btn { text-decoration: none; }
   /* 抽選の演出：ステージを縮小（見た目だけ縮め、余白を詰める） */
   .stage,
   .stage[data-state="win"],
-  .stage[data-state="lose"] { transform: scale(.52); margin: -60px auto -56px; }
+  .stage[data-state="lose"] { transform: scale(.48); margin: -66px auto -62px; }
   .done-note { margin-bottom: 6px; padding: 4px 14px; font-size: 12px; }
 
   /* 結果 */
-  .result-en { margin-bottom: 6px; font-size: 28px; }
+  .result-en { margin-bottom: 4px; font-size: 26px; line-height: 1.2; }
   .result-en-lose { font-size: 26px; }
   .result-card { padding: 14px 18px; }
   #redeemBox > p.small { margin: 4px 0; }
   .redeem-form .error:empty { display: none; }
-  .prize { margin: 0 0 6px; font-size: 21px; }
+  .prize { margin: 0 0 4px; font-size: 21px; line-height: 1.35; }
   .result-card .small { font-size: 12px; line-height: 1.6; }
   .redeem-form { margin: 8px 0 0; gap: 6px; }
-  .redeem-form input { padding: 6px 20px; font-size: 18px; }
+  .redeem-form input { padding: 5px 20px; font-size: 18px; }
   .redeem-note { font-size: 11px; }
   #backBox { margin-top: 10px; }
   .status-text { margin-top: 0; }
@@ -860,4 +861,14 @@ a.btn { text-decoration: none; }
     line-height: 1.4;
   }
   .tier-range { font-size: 12px; }
+}
+
+/* 表示できる高さがとくに小さい画面（iPhone SE の Safari など）：抽選の円をさらに小さく */
+@media (max-width: 430px) and (max-height: 600px) {
+  .stage,
+  .stage[data-state="win"],
+  .stage[data-state="lose"] { transform: scale(.4); margin: -78px auto -74px; }
+  .brand { margin-bottom: 6px; }
+  .brand-logo { width: 64px; }
+  .brand-title { font-size: 18px; }
 }
