@@ -44,7 +44,7 @@
         (q.options || []).forEach((o) => sel.appendChild(el('option', { value: o }, o)));
         fs.appendChild(sel);
       } else if (q.type === 'textarea') {
-        fs.appendChild(el('textarea', { name: name, class: 'q-input', rows: '4', maxlength: '2000' }));
+        fs.appendChild(el('textarea', { name: name, class: 'q-input', rows: '3', maxlength: '2000' }));
       } else {
         fs.appendChild(el('input', { type: 'text', name: name, class: 'q-input', maxlength: '200' }));
       }
