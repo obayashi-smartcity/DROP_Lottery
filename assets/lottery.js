@@ -250,12 +250,20 @@
     }
   }
 
+  /**
+   * 引換パスワードの入力値をそろえる。NFKC で全角英数字・全角スペースを半角にし、前後の空白を除く。
+   * 日本語キーボードのまま全角で打っても照合できるようにするため（大文字・小文字は GAS 側でそろえる）
+   */
+  function normalizePassword(v) {
+    return String(v == null ? '' : v).normalize('NFKC').trim();
+  }
+
   /** 当選者がスタッフから聞いたパスワードを入れて引き換える */
   let redeeming = false;
   async function redeem(e) {
     e.preventDefault();
     if (redeeming) return; // 二重送信防止
-    const pw = $('#redeemPw').value.trim();
+    const pw = normalizePassword($('#redeemPw').value);
     if (!pw) { $('#redeemError').textContent = 'パスワードを入力してください'; return; }
     redeeming = true;
     $('#redeemBtn').disabled = true;

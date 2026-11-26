@@ -74,6 +74,7 @@ GAS のプロジェクトとスプレッドシートは、共有ドライブ「0
 | 景品と数 | `DROP_Lottery_DB` の **Prizes** シート（行を増やしたら抽選GASの `setupSheets` を実行して集計式を入れる）。H列「区分」に `はずれ` と入れた景品は、通常の景品に当たらなかった人に渡す |
 | イベント名・受付期間・引換期限・受付停止 | `DROP_Lottery_DB` の **Config** シート |
 | スタンプ数の上限 | `DROP_Lottery_DB` の **Config** シートの `MAX_POINTS`（0 以上の整数。行がない・空欄・不正な値なら 10,000,000。これを超えるスタンプ数で来たら LP は「スタンプラリーのページから開いてください」を表示し、GAS も抽選を受け付けない）。10,000,000 より大きくする場合は `gas/survey/Code.gs` の `MAX_POINTS` も上げる |
+| 引換パスワードの失敗回数の上限・ロック時間 | `DROP_Lottery_DB` の **Config** シートの `REDEEM_MAX_FAIL`（回）・`REDEEM_LOCK_MIN`（分、最大 360）。行がない・空欄・正の整数でないときは 10 回・5 分 |
 | 引換パスワード | `DROP_Lottery_DB` の **Config** シートの `REDEEM_PASSWORD`（初期値 0884。先頭の0が消えないよう文字列で入れる） |
 | アンケートの設問 | `assets/survey-config.js`（新しい設問IDは Responses シートに列が自動で追加される） |
 | 「スタンプラリーに戻る」ボタンの戻り先（LP・結果画面に表示） | `assets/config.js` の `STAMP_RALLY_URL`（空にするとボタンを出さない） |
@@ -118,7 +119,7 @@ Responses シートに1回答1行。受信日時・userId・ポイント・tierI
 抽選GAS（DROP_Lottery）：
 
 1. 関数 `setupSecrets` を実行する（初回は権限の承認が必要）。実行ログに表示されるスタッフ PIN を控える。PIN はプロジェクトの設定 > スクリプト プロパティの `STAFF_PIN` で変更できる。
-2. 関数 `setupSheets` を実行する。Tiers・Users シート、Config の `REDEEM_PASSWORD`・`MAX_POINTS`（行がなければ追加）、Prizes の集計式ができる（何度実行してもデータは消えない）。
+2. 関数 `setupSheets` を実行する。Tiers・Users シート、Config の `REDEEM_PASSWORD`・`MAX_POINTS`・`REDEEM_MAX_FAIL`・`REDEEM_LOCK_MIN`（行がなければ追加）、Prizes の集計式ができる（何度実行してもデータは消えない）。
 3. ウェブアプリとしてデプロイし、URL を `GAS_URL` に貼る。
 
 アンケートGAS（DROP_Lottery_Survey_API）：
@@ -133,7 +134,7 @@ Responses シートに1回答1行。受信日時・userId・ポイント・tierI
 | 同じユーザーIDで何度も抽選 | Users シートでユーザーIDごとに1回。抽選済みなら前回の結果を返す |
 | スタンプ数と違うボタンで抽選 | GAS が Tiers を見てスタンプ数とボタンの組み合わせを検証する |
 | 同じ当選で何度も引換 | 引換は GAS のロック内で「未引換 → 引換済み」を1回だけ行う |
-| 引換パスワードの総当たり | ユーザーIDごとに5回間違えると15分間引き換えできない。パスワードは画面に置かず GAS で照合する |
+| 引換パスワードの総当たり | ユーザーIDごとに Config の `REDEEM_MAX_FAIL` 回（初期値 10）間違えると `REDEEM_LOCK_MIN` 分間（初期値 5、最大 360）引き換えできない。パスワードは画面に置かず GAS で照合する |
 | 在庫を超えた当選 | 当選時に「初期数 − 当選数」が残っている景品だけを割り当てる（ロック内） |
 | 画面の改ざん | 当落は GAS が決め、画面には確率も景品構成も置かない |
 

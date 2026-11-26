@@ -62,8 +62,11 @@ const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 // スタンプ数の上限は Config シートの MAX_POINTS。行がない・空欄・不正な値のときはこの値を使う
 const DEFAULT_MAX_POINTS = 10000000;
 const DEFAULT_REDEEM_PASSWORD = '0884'; // Config に REDEEM_PASSWORD 行がないときに setupSheets が入れる初期値
-const SELF_MAX_FAIL = 5;                // 引換パスワードの入力ミスの上限（ユーザーIDごと）
-const SELF_LOCK_SEC = 15 * 60;
+// 引換パスワードの入力ミスの上限（ユーザーIDごと）とロック時間。Config の REDEEM_MAX_FAIL（回）・REDEEM_LOCK_MIN（分）で変えられる。
+// 行がない・空欄・不正な値（正の整数でない）ときはこの初期値を使う
+const SELF_MAX_FAIL = 10;
+const SELF_LOCK_SEC = 5 * 60;
+const MAX_LOCK_MIN = 360; // CacheService の保持期間の上限（6時間）
 const PRIZE_KIND_COL = 8;                  // Prizes の「区分」列（H列）
 const CONSOLATION_MARK = 'はずれ';          // 区分がこの値の景品は、P01〜のどれにも当たらなかった人に渡す（はずれ景品）
 
@@ -197,17 +200,19 @@ function apiStatus_(req) {
 /**
  * 参加者の結果画面で、スタッフが口頭で伝えたパスワードを入れて引き換える。
  * 未引換 → 引換済み を1回だけ行う。パスワードは Config シートの REDEEM_PASSWORD。
+ * 口頭で伝えると大文字・小文字が伝わりにくく、先頭を自動で大文字にする端末もあるため、両方を小文字にそろえて比べる。
+ * （全角→半角は画面側で NFKC 正規化してから送る）
  */
 function apiRedeemSelf_(req) {
   const userId = requireUserId_(req.userId);
-  const password = String(req.password == null ? '' : req.password).trim();
+  const password = String(req.password == null ? '' : req.password).trim().toLowerCase();
   const cfg = getConfig_();
   if (!cfg.REDEEM_PASSWORD) throw appError_('NOT_CONFIGURED', '引換パスワードが未設定です（スタッフにお知らせください）');
 
   const cache = CacheService.getScriptCache();
   const failKey = 'rfail:' + userId;
   const fails = Number(cache.get(failKey) || 0);
-  if (fails >= SELF_MAX_FAIL) throw appError_('LOCKED', 'パスワードの入力ミスが続いたため、15分間は引き換えできません');
+  if (fails >= cfg.REDEEM_MAX_FAIL) throw appError_('LOCKED', `パスワードの入力ミスが続いたため、${cfg.REDEEM_LOCK_MIN}分間は引き換えできません`);
 
   return withLock_(() => {
     const ss = ss_();
@@ -223,10 +228,14 @@ function apiRedeemSelf_(req) {
     if (w.status === STATUS.VOID) throw appError_('VOID', 'この当選は無効になっています');
     if (view.expired) throw appError_('EXPIRED', '引換期限を過ぎています');
 
-    if (!safeEqual_(password, cfg.REDEEM_PASSWORD)) {
-      cache.put(failKey, String(fails + 1), SELF_LOCK_SEC);
+    if (!safeEqual_(password, cfg.REDEEM_PASSWORD.toLowerCase())) {
+      cache.put(failKey, String(fails + 1), cfg.REDEEM_LOCK_MIN * 60);
       log_('redeemSelf', userId, 'NG', `パスワード違い ${fails + 1}回目`);
-      throw appError_('BAD_PASSWORD', `パスワードが違います（あと${SELF_MAX_FAIL - fails - 1}回）`);
+      const left = cfg.REDEEM_MAX_FAIL - fails - 1;
+      if (left <= 0) { // この失敗で上限に達した（次からは LOCKED）
+        throw appError_('BAD_PASSWORD', `入力ミスが上限に達しました。${cfg.REDEEM_LOCK_MIN}分後にもう一度入力してください`);
+      }
+      throw appError_('BAD_PASSWORD', `パスワードが違います（あと${left}回）`);
     }
 
     const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
@@ -389,6 +398,16 @@ function setupSheets() {
     config.getRange(r, 1, 1, 3).setValues([['MAX_POINTS', DEFAULT_MAX_POINTS, 'スタンプ数の上限。これを超える値で来たら抽選できない（画面は「スタンプラリーのページから開いてください」）']]);
     console.log('Config に MAX_POINTS を追加しました');
   }
+  if (keys.indexOf('REDEEM_MAX_FAIL') === -1) {
+    const r = config.getLastRow() + 1;
+    config.getRange(r, 1, 1, 3).setValues([['REDEEM_MAX_FAIL', SELF_MAX_FAIL, '引換パスワードの入力ミスの上限（回、ユーザーIDごと）。この回数間違えると REDEEM_LOCK_MIN 分間は引き換えできない']]);
+    console.log('Config に REDEEM_MAX_FAIL を追加しました');
+  }
+  if (keys.indexOf('REDEEM_LOCK_MIN') === -1) {
+    const r = config.getLastRow() + 1;
+    config.getRange(r, 1, 1, 3).setValues([['REDEEM_LOCK_MIN', SELF_LOCK_SEC / 60, '引換パスワードの入力ミスが上限に達したときのロック時間（分）。最大 360']]);
+    console.log('Config に REDEEM_LOCK_MIN を追加しました');
+  }
 
   let tiers = ss.getSheetByName(SHEET.TIERS);
   if (!tiers) tiers = ss.insertSheet(SHEET.TIERS);
@@ -491,7 +510,16 @@ function getConfig_() {
   cfg.REDEEM_DEADLINE = toDate_(cfg.REDEEM_DEADLINE);
   cfg.ACCEPTING = cfg.ACCEPTING === true || String(cfg.ACCEPTING).toUpperCase() === 'TRUE';
   cfg.MAX_POINTS = toMaxPoints_(cfg.MAX_POINTS);
+  cfg.REDEEM_MAX_FAIL = toPositiveInt_(cfg.REDEEM_MAX_FAIL, SELF_MAX_FAIL);
+  cfg.REDEEM_LOCK_MIN = Math.min(toPositiveInt_(cfg.REDEEM_LOCK_MIN, SELF_LOCK_SEC / 60), MAX_LOCK_MIN);
   return cfg;
+}
+
+/** 正の整数ならその値。行がない・空欄・0 以下・小数・数値でないなら fallback */
+function toPositiveInt_(v, fallback) {
+  if (v === '' || v == null) return fallback;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
 /** Config の MAX_POINTS（0 以上の整数）。行がない・空欄・不正な値なら DEFAULT_MAX_POINTS */
