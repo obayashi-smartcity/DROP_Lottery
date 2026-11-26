@@ -3,7 +3,7 @@
  *
  * アンケート画面（GitHub Pages の survey.html）から POST で呼ばれ、回答を
  * スプレッドシート DROP_Lottery_Survey の Responses シートに1行ずつ追記する。
- * 画面から渡されたパラメータ（ユーザーID・ポイント数・選んだボタンなど）も一緒に記録する。
+ * 画面から渡されたパラメータ（ユーザーID・スタンプ数・選んだボタンなど）も一緒に記録する。
  *
  * 公開設定: デプロイ > ウェブアプリ / 次のユーザーとして実行: 自分 / アクセスできるユーザー: 全員
  *
@@ -17,7 +17,10 @@ const SHEET_NAME = 'Responses';
 // 先頭の固定列。この右に設問IDごとの列が並ぶ
 const FIXED_HEADERS = ['受信日時', 'userId', 'ポイント', 'tierId', 'ボタン名', 'deviceId', 'パラメータ(JSON)', '回答(JSON)'];
 
-const USER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/;
+// ユーザーID（スタンプラリーの account_id）は UUID。小文字にそろえて記録する（抽選GAS と同じ）
+const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// 明らかにおかしい値だけを弾くための上限。本来の上限（抽選GAS の Config の MAX_POINTS）は LP と抽選GAS で確認する。
+// Config の MAX_POINTS をこれより大きくする場合は、この値も合わせて上げる
 const MAX_POINTS = 10000000;
 const MAX_ANSWERS = 50;
 const MAX_TEXT = 2000;
@@ -46,10 +49,11 @@ function doPost(e) {
 
 /** 回答を1行追記する */
 function submit_(req) {
-  const userId = String(req.userId == null ? '' : req.userId).trim();
-  if (!USER_ID_RE.test(userId)) throw appError_('BAD_USER', 'ユーザーIDの形式が正しくありません');
+  const rawUserId = String(req.userId == null ? '' : req.userId).trim();
+  if (!USER_ID_RE.test(rawUserId)) throw appError_('BAD_USER', 'ユーザーIDの形式が正しくありません');
+  const userId = rawUserId.toLowerCase();
   const points = Number(req.points);
-  if (!Number.isInteger(points) || points < 0 || points > MAX_POINTS) throw appError_('BAD_POINTS', 'ポイント数が正しくありません');
+  if (!Number.isInteger(points) || points < 0 || points > MAX_POINTS) throw appError_('BAD_POINTS', 'スタンプ数が正しくありません');
   const tierId = text_(req.tierId, 32);
   const tierLabel = text_(req.tierLabel, 50);
   const deviceId = text_(req.deviceId, 36);

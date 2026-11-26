@@ -5,8 +5,9 @@
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
   const CODE_KEY = 'drop_lottery_event_code';
-  const USER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/; // GAS 側と同じ
-  const POINTS_RE = /^\d{1,9}$/; // 0 以上の整数
+  // ユーザーID（account_id）は UUID。大文字・小文字を区別せずに受け付け、小文字にそろえる（GAS 側と同じ）
+  const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const POINTS_RE = /^\d{1,9}$/; // 0 以上の整数（上限は GAS の info が返す maxPoints で確認する）
 
   let eventCode = '';
   let current = null; // { userId, points }
@@ -31,7 +32,7 @@
   function validate(userId, points) {
     const raw = String(points == null ? '' : points).trim();
     if (!USER_ID_RE.test(userId || '') || !POINTS_RE.test(raw)) return null;
-    return { userId: userId, points: Number(raw) };
+    return { userId: String(userId).toLowerCase(), points: Number(raw) };
   }
 
   function setEventName(name) {
@@ -110,6 +111,8 @@
         L.goTo('lottery.html');
         return;
       }
+      // スタンプ数の上限（Config の MAX_POINTS）。古い GAS で maxPoints が返らないときは確認しない
+      if (typeof info.maxPoints === 'number' && user.points > info.maxPoints) { L.clearFlow(); showNoParam(); return; }
       if (!info.codeValid) { L.show('nocode'); return; }
       if (!info.open) { showClosed(info); return; }
       renderTiers(info.tiers || [], user.points);

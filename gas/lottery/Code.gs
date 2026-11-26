@@ -4,7 +4,7 @@
  * 画面（GitHub Pages）から POST で呼ばれる。当落判定・在庫・引換はすべてここで行う。
  * 公開設定: デプロイ > ウェブアプリ / 次のユーザーとして実行: 自分 / アクセスできるユーザー: 全員
  *
- * 流れ: LP（ポイントでボタンを選ぶ）→ アンケート（別GAS）→ 抽選 → 結果
+ * 流れ: LP（スタンプ数でボタンを選ぶ）→ アンケート（別GAS）→ 抽選 → 結果
  *  - 抽選はユーザーIDごとに1回。
  *  - ボタン（Tiers シート）ごとの当選確率で当落を決め、当たりなら Prizes の残りから景品を割り当てる。
  *    景品の残りがなければはずれ。
@@ -45,10 +45,10 @@ const HEADERS = {
 
 // Tiers シートが空のときに入れる初期値（確率は仮）
 const SAMPLE_TIERS = [
-  ['B1', 'ボタン1', 5, 9, 10, '5〜9ポイント'],
-  ['B2', 'ボタン2', 10, 24, 20, '10〜24ポイント'],
-  ['B3', 'ボタン3', 25, 49, 35, '25〜49ポイント'],
-  ['B4', 'ボタン4', 50, '', 50, '50ポイント以上（最大ポイントが空欄なら上限なし）'],
+  ['B1', 'ボタン1', 5, 9, 10, '5〜9スタンプ'],
+  ['B2', 'ボタン2', 10, 24, 20, '10〜24スタンプ'],
+  ['B3', 'ボタン3', 25, 49, 35, '25〜49スタンプ'],
+  ['B4', 'ボタン4', 50, '', 50, '50スタンプ以上（最大ポイントが空欄なら上限なし）'],
 ];
 
 const TOKEN_TTL_SEC = 6 * 60 * 60; // CacheService の上限が6時間
@@ -57,8 +57,10 @@ const PIN_MAX_FAIL = 5;
 const PIN_LOCK_SEC = 15 * 60;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 見間違えやすい I O 0 1 を除外
 const CODE_LENGTH = 6;
-const USER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/;
-const MAX_POINTS = 10000000;
+// ユーザーID（スタンプラリーの account_id）は UUID。大文字・小文字を区別せずに受け付け、小文字にそろえて使う
+const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// スタンプ数の上限は Config シートの MAX_POINTS。行がない・空欄・不正な値のときはこの値を使う
+const DEFAULT_MAX_POINTS = 10000000;
 const DEFAULT_REDEEM_PASSWORD = '0884'; // Config に REDEEM_PASSWORD 行がないときに setupSheets が入れる初期値
 const SELF_MAX_FAIL = 5;                // 引換パスワードの入力ミスの上限（ユーザーIDごと）
 const SELF_LOCK_SEC = 15 * 60;
@@ -116,6 +118,7 @@ function apiInfo_(req) {
     now: iso_(now),
     codeRequired: !!cfg.EVENT_CODE, // EVENT_CODE が空なら合言葉なし
     codeValid: !cfg.EVENT_CODE || String(req.eventCode || '') === cfg.EVENT_CODE,
+    maxPoints: cfg.MAX_POINTS, // 画面でも同じ上限で確認する
     tiers: getTiers_(ss_()).map((t) => ({ id: t.id, label: t.label, min: t.min, max: t.max })),
   };
 }
@@ -123,12 +126,12 @@ function apiInfo_(req) {
 /** 抽選。ユーザーIDごとに1回。抽選済みなら前回の結果を返す */
 function apiDraw_(req) {
   const userId = requireUserId_(req.userId);
-  const points = requirePoints_(req.points);
+  const cfg = getConfig_();
+  const points = requirePoints_(req.points, cfg.MAX_POINTS);
   const tierId = String(req.tierId || '').slice(0, 32);
   const deviceId = optionalDeviceId_(req.deviceId);
   const fp = String(req.fp || '').replace(/[^0-9a-f]/gi, '').slice(0, 64);
   const eventCode = String(req.eventCode || '').slice(0, 64);
-  const cfg = getConfig_();
   if (cfg.EVENT_CODE && eventCode !== cfg.EVENT_CODE) throw appError_('INVALID_CODE', 'イベントコードが正しくありません');
 
   return withLock_(() => {
@@ -148,8 +151,8 @@ function apiDraw_(req) {
     if (!isOpen_(cfg, now)) throw appError_('CLOSED', '現在は抽選の受付時間外です');
 
     const tier = tierForPoints_(getTiers_(ss), points);
-    if (!tier) throw appError_('NO_TIER', 'ポイントが足りないため抽選できません');
-    if (tier.id !== tierId) throw appError_('BAD_TIER', '選んだボタンとポイントが合いません。最初からやり直してください');
+    if (!tier) throw appError_('NO_TIER', 'スタンプ数が足りないため抽選できません');
+    if (tier.id !== tierId) throw appError_('BAD_TIER', '選んだボタンとスタンプ数が合いません。最初からやり直してください');
 
     let ticketId = '';
     let prize = null;
@@ -381,6 +384,11 @@ function setupSheets() {
     config.getRange(r, 1, 1, 3).setValues([['REDEEM_PASSWORD', DEFAULT_REDEEM_PASSWORD, '景品引換のパスワード。スタッフが当選者に伝え、当選者が結果画面で入力する']]);
     console.log('Config に REDEEM_PASSWORD を追加しました');
   }
+  if (keys.indexOf('MAX_POINTS') === -1) {
+    const r = config.getLastRow() + 1;
+    config.getRange(r, 1, 1, 3).setValues([['MAX_POINTS', DEFAULT_MAX_POINTS, 'スタンプ数の上限。これを超える値で来たら抽選できない（画面は「スタンプラリーのページから開いてください」）']]);
+    console.log('Config に MAX_POINTS を追加しました');
+  }
 
   let tiers = ss.getSheetByName(SHEET.TIERS);
   if (!tiers) tiers = ss.insertSheet(SHEET.TIERS);
@@ -482,7 +490,15 @@ function getConfig_() {
   cfg.CLOSE_AT = toDate_(cfg.CLOSE_AT);
   cfg.REDEEM_DEADLINE = toDate_(cfg.REDEEM_DEADLINE);
   cfg.ACCEPTING = cfg.ACCEPTING === true || String(cfg.ACCEPTING).toUpperCase() === 'TRUE';
+  cfg.MAX_POINTS = toMaxPoints_(cfg.MAX_POINTS);
   return cfg;
+}
+
+/** Config の MAX_POINTS（0 以上の整数）。行がない・空欄・不正な値なら DEFAULT_MAX_POINTS */
+function toMaxPoints_(v) {
+  if (v === '' || v == null) return DEFAULT_MAX_POINTS;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 ? n : DEFAULT_MAX_POINTS;
 }
 
 function isOpen_(cfg, now) {
@@ -492,7 +508,7 @@ function isOpen_(cfg, now) {
   return true;
 }
 
-/** Tiers シートのボタン一覧（上から順）。最大ポイントが空欄なら上限なし */
+/** Tiers シートのボタン一覧（上から順）。最大ポイント（スタンプ数）が空欄なら上限なし */
 function getTiers_(ss) {
   const sheet = ss.getSheetByName(SHEET.TIERS);
   if (!sheet) throw appError_('NOT_CONFIGURED', 'Tiers シートがありません（setupSheets を実行してください）');
@@ -507,7 +523,7 @@ function getTiers_(ss) {
     }));
 }
 
-/** ポイントに合うボタン（範囲が重なっていたら上の行を優先）。なければ null */
+/** スタンプ数に合うボタン（範囲が重なっていたら上の行を優先）。なければ null */
 function tierForPoints_(tiers, points) {
   return tiers.find((t) => points >= t.min && (t.max === null || points <= t.max)) || null;
 }
@@ -560,13 +576,13 @@ function iso_(d) {
 
 function requireUserId_(v) {
   const id = String(v == null ? '' : v).trim();
-  if (!USER_ID_RE.test(id)) throw appError_('BAD_USER', 'ユーザーIDの形式が正しくありません（英数字と _ . : @ - が使えます）');
-  return id;
+  if (!USER_ID_RE.test(id)) throw appError_('BAD_USER', 'ユーザーIDの形式が正しくありません');
+  return id.toLowerCase();
 }
 
-function requirePoints_(v) {
+function requirePoints_(v, max) {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 0 || n > MAX_POINTS) throw appError_('BAD_POINTS', 'ポイント数が正しくありません');
+  if (!Number.isInteger(n) || n < 0 || n > max) throw appError_('BAD_POINTS', 'スタンプ数が正しくありません');
   return n;
 }
 
