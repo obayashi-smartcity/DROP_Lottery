@@ -1,10 +1,10 @@
 // 抽選システムの設定。GASをデプロイしたら URL を書き換える。
 window.LOTTERY_CONFIG = {
   // 抽選GAS「デプロイ > ウェブアプリ」の URL（…/exec で終わるもの）
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbwCgzpKfQgHp9oAaZ-RYuWkzaNmAsGaRJGzoG3_Qkmb3MXtuxieJ36bZx_KIepPLxZJrw/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzesRUAp8zG3HAUPZV06jba5ew-86SUgaR2FvFvxaWAqkuJalBrrISowro4pmfmskmvpA/exec',
 
   // アンケートGAS（DROP_Lottery_Survey_API）の URL
-  SURVEY_GAS_URL: 'https://script.google.com/macros/s/AKfycbxd_8nC9tJUyLXnqon1qpzALdbkYm5jVr_op9AAuRJnqM4t2x7QQckpRQr32pF6tIKF/exec',
+  SURVEY_GAS_URL: 'https://script.google.com/macros/s/AKfycbz32ki4ccmY4MKSpgaL6fq4xddcAklXLN2AQYeirnI5N7qOM-EvRuThKYuM7mps20-7/exec',
 
   // 遷移元（スタンプラリー）から受け取る URL パラメータ名
   // 例: index.html?account_id=ABC123&point=30（手入力欄はない。パラメータがなければ「スタンプラリーのページから開いてください」）
