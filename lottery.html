@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F3E9E2">
+  <title>特典抽選会</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=DM+Sans:opsz,wght@9..40,400..800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="lottery">
+  <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+
+  <main class="wrap">
+    <header class="brand">
+      <img class="brand-logo" src="assets/logo.png" alt="みんまちDROP for 中之島" width="262" height="160">
+      <h1 id="eventName" class="brand-title">特典抽選会</h1>
+    </header>
+
+    <!-- 抽選の演出（どの画面でも表示） -->
+    <div id="stage" class="stage" data-state="idle" aria-hidden="true">
+      <div class="stage-ring"></div>
+      <div class="orb">
+        <span class="piece p1"></span>
+        <span class="piece p2"></span>
+        <span class="piece p3"></span>
+        <span class="piece p4"></span>
+        <span class="piece p5"></span>
+        <span class="core"><span class="core-text" id="coreText">?</span></span>
+      </div>
+      <div class="stage-flash"></div>
+    </div>
+
+    <p class="done-note" id="doneNote" hidden>このユーザーIDの抽選は完了しています</p>
+
+    <section data-view="loading" class="panel center">
+      <p class="status-text status-text-en">Loading...</p>
+    </section>
+
+    <section data-view="nocode" class="panel card center" hidden>
+      <h2 class="h2">会場のQRコードから開いてください</h2>
+      <p class="muted">抽選は会場に掲示しているQRコードから参加できます。</p>
+    </section>
+
+    <section data-view="closed" class="panel card center" hidden>
+      <h2 class="h2">現在は受付時間外です</h2>
+      <p class="muted" id="closedText"></p>
+    </section>
+
+    <section data-view="drawing" class="panel center" hidden>
+      <p class="status-text status-text-en" id="drawingText" aria-live="polite">Loading...</p>
+    </section>
+
+    <section data-view="win" class="panel center" hidden>
+      <p class="result-en result-ja" id="resultHead">当選</p>
+      <div class="card result-card">
+        <h2 class="prize" id="prizeName"></h2>
+        <div id="redeemBox">
+          <p class="muted small">国立国際美術館B1階インフォメーションにお越しいただき、示されたパスワードを入力してください。</p>
+          <form id="redeemForm" class="form redeem-form" novalidate>
+            <label>引換パスワード
+              <input id="redeemPw" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
+            </label>
+            <p class="muted small redeem-note">ログイン済みの場合、抽選画面に進むとこの画面が表示されるようになります。</p>
+            <button id="redeemBtn" class="btn btn-primary btn-xl" type="submit">引き換える</button>
+            <p class="error" id="redeemError" role="alert"></p>
+          </form>
+        </div>
+        <div id="redeemedBox" hidden>
+          <p class="pill pill-done">引換済み</p>
+          <p class="muted" id="redeemedText"></p>
+          <p class="muted small">この画面をスタッフに見せて、景品をお受け取りください。</p>
+        </div>
+      </div>
+    </section>
+
+    <section data-view="lose" class="panel center" hidden>
+      <p class="result-en result-en-lose result-ja">はずれ</p>
+      <div class="card result-card">
+        <h2 class="h2">ざんねん…</h2>
+        <p class="muted">ご参加ありがとうございました。<br>またこの街で会いましょう。</p>
+      </div>
+    </section>
+
+    <section data-view="error" class="panel card center" hidden>
+      <h2 class="h2">うまく読み込めませんでした</h2>
+      <p id="errorText" class="muted"></p>
+      <button id="retryBtn" class="btn" type="button">もう一度試す</button>
+    </section>
+
+    <div class="center" id="backBox" hidden>
+      <a class="btn js-rally" href="#">スタンプラリーに戻る</a>
+    </div>
+
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/lottery.js"></script>
+</body>
+</html>

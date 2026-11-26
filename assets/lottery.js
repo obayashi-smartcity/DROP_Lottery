@@ -1,17 +1,18 @@
-// 参加者画面。抽選APIを呼ぶタイミングと演出はこの画面が制御する
+// 抽選画面（アンケートの次）と結果・完了画面。抽選APIを呼ぶタイミングと演出はこの画面が制御する
 (function () {
   const L = window.Lottery;
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
-  const RESULT_KEY = 'drop_lottery_result';
-  const CODE_KEY = 'drop_lottery_event_code';
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const stage = $('#stage');
   const coreText = $('#coreText');
 
-  let deviceId = null;
-  let eventCode = '';
+  const flow = L.getFlow();
+  if (!flow.userId) { L.goTo('index.html'); return; } // LP を通っていない
+
+  const userId = flow.userId;
+  let deviceId = '';
   let drawing = false;
   let pollTimer = null;
 
@@ -22,17 +23,10 @@
     if (text !== undefined) coreText.textContent = text;
   }
 
-  const DRAW_LINES = ['MIXING...', 'GATHERING LUCK...', 'ALMOST THERE...', 'HERE IT COMES!'];
-
+  /** 抽選中の表示（Loading... のまま） */
   function startDrawingText() {
-    const el = $('#drawingText');
-    let i = 0;
-    el.textContent = DRAW_LINES[0];
-    const t = setInterval(() => {
-      i = Math.min(i + 1, DRAW_LINES.length - 1);
-      el.textContent = DRAW_LINES[i];
-    }, 750);
-    return () => clearInterval(t);
+    $('#drawingText').textContent = 'Loading...';
+    return () => {};
   }
 
   function vibrate(pattern) {
@@ -98,13 +92,13 @@
   async function playReveal(res) {
     const win = res.result === 'win';
     if (REDUCED) {
-      setStage(win ? 'win' : 'lose', win ? 'WIN' : '…');
+      setStage(win ? 'win' : 'lose', win ? 'WIN' : 'LOSE');
       return;
     }
     setStage('reveal');
     vibrate(30);
     await L.sleep(520);
-    setStage(win ? 'win' : 'lose', win ? 'WIN' : '…');
+    setStage(win ? 'win' : 'lose', win ? 'WIN' : 'LOSE');
     if (win) {
       vibrate([60, 40, 120]);
       confetti();
@@ -116,44 +110,28 @@
 
   /* ---------- 状態 ---------- */
 
-  function readEventCode() {
-    const url = new URL(location.href);
-    const fromUrl = (url.searchParams.get('c') || '').trim();
-    if (fromUrl) {
-      L.lsSet(CODE_KEY, fromUrl); // タブを閉じても再表示できるよう端末に残す
-      url.searchParams.delete('c');
-      history.replaceState(null, '', url.pathname + url.search + url.hash);
-      return fromUrl;
-    }
-    return L.lsGet(CODE_KEY) || '';
-  }
-
   function setEventName(name) {
     if (!name) return;
     $('#eventName').textContent = name;
     document.title = name;
   }
 
-  function saveResult(res) { L.lsSet(RESULT_KEY, JSON.stringify(res)); }
-
-  function loadResult() {
-    try { return JSON.parse(L.lsGet(RESULT_KEY) || 'null'); } catch (e) { return null; }
-  }
-
-  function clearResult() {
-    try { localStorage.removeItem(RESULT_KEY); } catch (e) { /* ignore */ }
-  }
-
-  /** 結果の表示（演出なし。再表示やポーリングでも使う） */
+  /**
+   * 結果の表示（演出なし。再表示やポーリングでも使う）
+   * result が 'lose' でも consolation が true なら、はずれ景品（ポストカードなど）と引換欄を出す
+   */
   function render(res) {
     setEventName(res.eventName);
-    saveResult(res);
-    if (res.result !== 'win') {
-      setStage('lose', '…');
+    $('#backBox').hidden = false;
+    const consolation = res.result !== 'win' && !!res.consolation;
+    if (res.result !== 'win' && !consolation) {
+      setStage('lose', 'LOSE');
       L.show('lose');
       return;
     }
-    setStage('win', 'WIN');
+    setStage(consolation ? 'lose' : 'win', consolation ? 'LOSE' : 'WIN');
+    $('#resultHead').textContent = consolation ? 'はずれ' : '当選';
+    $('#resultHead').classList.toggle('result-en-lose', consolation);
     $('#prizeName').textContent = res.prizeName;
     const redeemed = res.redeemStatus === '引換済み';
     $('#redeemBox').hidden = redeemed;
@@ -162,12 +140,6 @@
       $('#redeemedText').textContent = res.redeemedAt ? `${L.fmtDate(res.redeemedAt)} に引き換えました` : '';
       stopPoll();
     } else {
-      const qr = qrcode(0, 'M');
-      qr.addData(res.qr);
-      qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
-      $('#redeemCode').textContent = L.fmtCode(res.redeemCode);
-      $('#deadlineText').textContent = res.redeemDeadline ? `引換期限：${L.fmtDate(res.redeemDeadline)}` : '';
       startPoll();
     }
     L.show('win');
@@ -178,7 +150,7 @@
     pollTimer = setInterval(async () => {
       if (document.hidden) return;
       try {
-        const res = await L.call('status', { deviceId });
+        const res = await L.call('status', { userId });
         if (res.drawn) render(res);
       } catch (e) { /* 次の周期で再試行 */ }
     }, CFG.STATUS_POLL_MS);
@@ -208,45 +180,36 @@
   async function init() {
     setStage('idle', '?');
     L.show('loading');
-    eventCode = readEventCode();
-    try {
-      deviceId = await L.getDeviceId();
-    } catch (e) {
-      showError({ message: 'この端末では抽選できません（ブラウザの設定で保存が無効になっている可能性があります）' });
-      return;
-    }
-
-    // 前回の結果があれば先に表示し、サーバーで最新の状態に更新する
-    const cached = loadResult();
-    if (cached) render(cached);
+    deviceId = await L.getDeviceId().catch(() => '');
 
     try {
-      const status = await L.call('status', { deviceId });
-      if (status.drawn) {
+      const status = await L.call('status', { userId });
+      if (status.drawn) { // 抽選済み：完了画面として結果を表示
+        $('#doneNote').hidden = false;
         render(status);
         return;
       }
-      if (cached) { clearResult(); setStage('idle', '?'); } // サーバー側で消えている（テストのやり直しなど）
+      // 未抽選なのにボタン選択やアンケートが済んでいなければ LP からやり直す
+      if (!flow.tierId || !flow.surveyDone) { L.goTo('index.html'); return; }
 
-      const info = await L.call('info', { eventCode });
+      const info = await L.call('info', { eventCode: flow.eventCode || '' });
       setEventName(info.eventName);
-      if (!info.codeValid) { // 合言葉ありの設定で、コードが無いか違う
+      if (!info.codeValid) {
         L.show('nocode');
       } else if (!info.open) {
         showClosed(info);
       } else {
-        $('#drawBtn').disabled = false;
-        L.show('ready');
+        draw(); // アンケートの「抽選する」で来ているので、そのまま抽選する
+        return;
       }
     } catch (err) {
-      if (!cached) showError(err);
+      showError(err);
     }
   }
 
   async function draw() {
     if (drawing) return; // 二重押し防止
     drawing = true;
-    $('#drawBtn').disabled = true;
     vibrate(15);
     setStage('drawing', '?');
     L.show('drawing');
@@ -254,23 +217,30 @@
     const started = Date.now();
     try {
       const fp = await L.getFingerprint().catch(() => '');
-      const res = await L.call('draw', { deviceId, eventCode, fp });
+      const res = await L.call('draw', {
+        userId, points: flow.points, tierId: flow.tierId, eventCode: flow.eventCode || '', deviceId, fp,
+      });
       const wait = CFG.DRAW_MIN_ANIMATION_MS - (Date.now() - started);
       if (wait > 0) await L.sleep(wait);
       stopText();
       await playReveal(res);
+      L.setFlow({ surveyDone: false, tierId: '' }); // 抽選が確定したので、戻っても再抽選の画面にはしない
+      if (res.alreadyDrawn) $('#doneNote').hidden = false;
       render(res);
     } catch (err) {
       stopText();
-      if (err.code === 'INVALID_CODE') {
+      if (err.code === 'BAD_TIER' || err.code === 'NO_TIER') {
+        L.setFlow({ tierId: '', surveyDone: false });
+        showError(err);
+      } else if (err.code === 'INVALID_CODE') {
         setStage('idle', '?');
         L.show('nocode');
       } else if (err.code === 'CLOSED') {
-        init();
+        try { showClosed(await L.call('info', { eventCode: flow.eventCode || '' })); } catch (e) { showClosed({}); }
       } else {
         // 通信が途中で切れても抽選は確定している場合があるので、状態を確認する
         try {
-          const status = await L.call('status', { deviceId });
+          const status = await L.call('status', { userId });
           if (status.drawn) { await playReveal(status); render(status); return; }
         } catch (e) { /* ignore */ }
         showError(err);
@@ -280,11 +250,37 @@
     }
   }
 
-  $('#drawBtn').addEventListener('click', draw);
-  $('#retryBtn').addEventListener('click', init);
+  /** 当選者がスタッフから聞いたパスワードを入れて引き換える */
+  let redeeming = false;
+  async function redeem(e) {
+    e.preventDefault();
+    if (redeeming) return; // 二重送信防止
+    const pw = $('#redeemPw').value.trim();
+    if (!pw) { $('#redeemError').textContent = 'パスワードを入力してください'; return; }
+    redeeming = true;
+    $('#redeemBtn').disabled = true;
+    $('#redeemError').textContent = '';
+    try {
+      const res = await L.call('redeemSelf', { userId, password: pw });
+      $('#redeemPw').value = '';
+      vibrate([40, 30, 80]);
+      render(res);
+    } catch (err) {
+      $('#redeemError').textContent = err.message || '引き換えできませんでした';
+    } finally {
+      redeeming = false;
+      $('#redeemBtn').disabled = false;
+    }
+  }
+
+  $('#redeemForm').addEventListener('submit', redeem);
+  $('#retryBtn').addEventListener('click', () => {
+    if (!L.getFlow().tierId) { L.goTo('index.html'); return; }
+    init();
+  });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && pollTimer) {
-      L.call('status', { deviceId }).then((res) => { if (res.drawn) render(res); }).catch(() => {});
+      L.call('status', { userId }).then((res) => { if (res.drawn) render(res); }).catch(() => {});
     }
   });
 

@@ -13,16 +13,17 @@
     }
   }
 
-  /** GAS に POST する。text/plain で送るのでCORSのプリフライトは発生しない */
-  async function call(action, payload) {
-    if (!CFG.GAS_URL || CFG.GAS_URL.includes('REPLACE_WITH')) {
+  /** GAS に POST する。text/plain で送るのでCORSのプリフライトは発生しない。url 省略時は抽選GAS */
+  async function call(action, payload, url) {
+    const target = url || CFG.GAS_URL;
+    if (!target || target.includes('REPLACE_WITH')) {
       throw new ApiError('NOT_CONFIGURED', 'GASのURLが設定されていません（assets/config.js）');
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), CFG.REQUEST_TIMEOUT_MS);
     let res;
     try {
-      res = await fetch(CFG.GAS_URL, {
+      res = await fetch(target, {
         method: 'POST',
         body: JSON.stringify(Object.assign({ action }, payload || {})),
         redirect: 'follow',
@@ -126,5 +127,41 @@
     document.querySelectorAll('[data-view]').forEach((el) => { el.hidden = el.dataset.view !== id; });
   }
 
-  window.Lottery = { call, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet };
+  /* ---------- 画面間で引き継ぐ状態（LP → アンケート → 抽選）。タブを閉じると消える ---------- */
+
+  const FLOW_KEY = 'drop_lottery_flow';
+
+  function getFlow() {
+    try { return JSON.parse(sessionStorage.getItem(FLOW_KEY) || 'null') || {}; } catch (e) { return {}; }
+  }
+  function setFlow(patch) {
+    const next = Object.assign(getFlow(), patch);
+    try { sessionStorage.setItem(FLOW_KEY, JSON.stringify(next)); } catch (e) { /* 保存できない環境 */ }
+    return next;
+  }
+  function clearFlow() {
+    try { sessionStorage.removeItem(FLOW_KEY); } catch (e) { /* ignore */ }
+  }
+
+  /** ポイントに合うボタン（GAS と同じ判定。範囲が重なっていたら上の行を優先） */
+  function tierForPoints(tiers, points) {
+    return (tiers || []).find((t) => points >= t.min && (t.max === null || t.max === undefined || points <= t.max)) || null;
+  }
+
+  function tierRangeText(t) {
+    return t.max === null || t.max === undefined ? `${t.min}スタンプ〜` : `${t.min}〜${t.max}スタンプ`;
+  }
+
+  function goTo(page) { location.replace(page); }
+
+  /** 「スタンプラリーに戻る」ボタン（.js-rally）に戻り先を入れる。未設定なら隠す */
+  document.querySelectorAll('.js-rally').forEach((a) => {
+    if (CFG.STAMP_RALLY_URL) a.href = CFG.STAMP_RALLY_URL;
+    else a.hidden = true;
+  });
+
+  window.Lottery = {
+    call, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet,
+    getFlow, setFlow, clearFlow, tierForPoints, tierRangeText, goTo,
+  };
 })();

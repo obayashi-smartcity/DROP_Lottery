@@ -15,7 +15,8 @@
 <body class="staff">
   <main class="wrap">
     <header class="brand">
-      <p class="brand-kicker">みんまち<span>DROP</span> STAFF</p>
+      <img class="brand-logo" src="assets/logo.png" alt="みんまちDROP for 中之島" width="262" height="160">
+      <p class="brand-sub">STAFF</p>
       <h1 class="brand-title">景品引換</h1>
       <p class="staff-info" id="staffInfo" hidden></p>
     </header>
@@ -59,11 +60,18 @@
         </div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>景品</th><th>初期数</th><th>当選</th><th>引換</th><th>手元残</th><th>くじ箱残</th></tr></thead>
+            <thead><tr><th>景品</th><th>初期数</th><th>当選</th><th>引換</th><th>手元残</th><th>当選可能残</th></tr></thead>
             <tbody id="stockBody"></tbody>
           </table>
         </div>
         <dl class="totals" id="totals"></dl>
+        <h2 class="h2 tier-h">ボタン別</h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>ボタン</th><th>確率</th><th>抽選</th><th>当選</th></tr></thead>
+            <tbody id="tierBody"></tbody>
+          </table>
+        </div>
         <div id="fpWarn" class="warn" hidden></div>
         <p class="muted small" id="stockUpdated"></p>
       </div>

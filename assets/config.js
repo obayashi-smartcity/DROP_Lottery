@@ -1,7 +1,20 @@
-// 抽選システムの設定。GASをデプロイしたら GAS_URL を書き換える。
+// 抽選システムの設定。GASをデプロイしたら URL を書き換える。
 window.LOTTERY_CONFIG = {
-  // GAS「デプロイ > ウェブアプリ」の URL（…/exec で終わるもの）
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbz9eeoqO-NIlcfLw298EsmX2NVaJNW2stQ2c1X3I6_HYTsFLC1JA6NVf4zULlbi8D4P7Q/exec',
+  // 抽選GAS「デプロイ > ウェブアプリ」の URL（…/exec で終わるもの）
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbwCgzpKfQgHp9oAaZ-RYuWkzaNmAsGaRJGzoG3_Qkmb3MXtuxieJ36bZx_KIepPLxZJrw/exec',
+
+  // アンケートGAS（DROP_Lottery_Survey_API）の URL
+  SURVEY_GAS_URL: 'https://script.google.com/macros/s/AKfycbxd_8nC9tJUyLXnqon1qpzALdbkYm5jVr_op9AAuRJnqM4t2x7QQckpRQr32pF6tIKF/exec',
+
+  // 遷移元サイトから受け取る URL パラメータ名（仕様が決まったら合わせる）
+  // 例: index.html?uid=ABC123&nn=たろう&pt=30 で開くと入力欄に入った状態で表示される
+  PARAM_USER_ID: 'uid',
+  PARAM_NICKNAME: 'nn',
+  PARAM_POINTS: 'pt',
+
+  // 「スタンプラリーに戻る」ボタンの戻り先（空にするとボタンを表示しない）
+  // ※ 仮のURL。スタンプラリーのURLが決まったら差し替える
+  STAMP_RALLY_URL: 'https://drop.machiapps.com/nakanoshima/',
 
   // 通信のタイムアウト（ミリ秒）
   REQUEST_TIMEOUT_MS: 20000,
