@@ -100,9 +100,10 @@
     current = user;
     L.show('loading');
     try {
+      // 読み取りだけなので、混雑・通信エラーは自動で再試行する（D-26）
       const [status, info] = await Promise.all([
-        L.call('status', { userId: user.userId }),
-        L.call('info', { eventCode }),
+        L.callWithRetry('status', { userId: user.userId }, { retryOn: L.RETRY_READ }),
+        L.callWithRetry('info', { eventCode }, { retryOn: L.RETRY_READ }),
       ]);
       setEventName(info.eventName);
       if (status.drawn) { // 抽選済みなら完了画面（結果）へ

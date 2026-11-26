@@ -95,7 +95,8 @@
     L.show('sending');
     try {
       const deviceId = await L.getDeviceId().catch(() => '');
-      await L.call('submit', {
+      // 自動再試行は BUSY のときだけ（通信エラーで送り直すと、同じ回答が二重に記録されるおそれがある）
+      await L.callWithRetry('submit', {
         userId: flow.userId,
         points: flow.points,
         tierId: flow.tierId,
@@ -103,10 +104,15 @@
         deviceId: deviceId,
         params: { userId: flow.userId, points: flow.points, tierId: flow.tierId, eventCode: flow.eventCode || '' },
         answers: answers,
-      }, CFG.SURVEY_GAS_URL);
+      }, {
+        url: CFG.SURVEY_GAS_URL,
+        retryOn: L.RETRY_BUSY_ONLY,
+        onRetry: () => { $('#sendingNote').hidden = false; },
+      });
       L.setFlow({ surveyDone: true });
       L.goTo('lottery.html');
     } catch (err) {
+      $('#sendingNote').hidden = true;
       $('#surveyError').textContent = err.message || '送信できませんでした';
       L.show('form');
       $('#submitBtn').disabled = false;

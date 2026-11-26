@@ -13,14 +13,19 @@
     }
   }
 
-  /** GAS に POST する。text/plain で送るのでCORSのプリフライトは発生しない。url 省略時は抽選GAS */
-  async function call(action, payload, url) {
+  /**
+   * GAS に POST する。text/plain で送るのでCORSのプリフライトは発生しない。url 省略時は抽選GAS。
+   * timeoutMs 省略時は REQUEST_TIMEOUT_MS。
+   * エラーコード: NETWORK（通信できない・タイムアウト）、BAD_RESPONSE（JSON でない応答。GAS の同時実行数の上限を超えたときの
+   * エラーページなども含む）、それ以外は GAS が返したコード（BUSY など）
+   */
+  async function call(action, payload, url, timeoutMs) {
     const target = url || CFG.GAS_URL;
     if (!target || target.includes('REPLACE_WITH')) {
       throw new ApiError('NOT_CONFIGURED', 'GASのURLが設定されていません（assets/config.js）');
     }
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), CFG.REQUEST_TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || CFG.REQUEST_TIMEOUT_MS);
     let res;
     try {
       res = await fetch(target, {
@@ -40,11 +45,46 @@
     } catch (e) {
       throw new ApiError('BAD_RESPONSE', 'サーバーの応答を読み取れませんでした');
     }
+    if (!body || typeof body !== 'object') throw new ApiError('BAD_RESPONSE', 'サーバーの応答を読み取れませんでした');
     if (!body.ok) {
       const err = body.error || {};
       throw new ApiError(err.code || 'ERROR', err.message || 'エラーが発生しました', body);
     }
     return body;
+  }
+
+  /** 混雑・通信エラーのときに自動で再試行してよいコード（処理ごとに選ぶ） */
+  const RETRY_READ = ['BUSY', 'NETWORK', 'BAD_RESPONSE']; // 読み取りだけ（status・info）と、何度呼んでも結果が同じ draw
+  const RETRY_BUSY_ONLY = ['BUSY'];                         // BUSY なら何も書かれていない。通信エラーは書けたか分からないので再試行しない
+
+  /**
+   * call を自動再試行つきで呼ぶ（D-26: 参加者を待たせるのは合計 RETRY_TOTAL_MS 程度まで）。
+   * opts: { url, retryOn（再試行するエラーコードの配列。省略時は RETRY_READ）, onRetry(info) }
+   * 待ち時間は RETRY_BASE_MS × 回数（上限 RETRY_MAX_DELAY_MS）に、±50% のランダムなずれ（ジッター）を加える。
+   * 通信時間を含めて RETRY_TOTAL_MS を超えそうなら打ち切り、最後のエラーを投げる。
+   * onRetry には { attempt（次が何回目か）, code, delayMs } を渡す（画面に「再試行しています」を出すため）
+   */
+  async function callWithRetry(action, payload, opts) {
+    opts = opts || {};
+    const retryOn = opts.retryOn || RETRY_READ;
+    const total = CFG.RETRY_TOTAL_MS || 30000;
+    const base = CFG.RETRY_BASE_MS || 2000;
+    const maxDelay = CFG.RETRY_MAX_DELAY_MS || 6000;
+    const minLeft = Math.min(5000, total / 3); // 残りがこれより短ければ、もう送らない（応答を待てないため）
+    const started = Date.now();
+    for (let attempt = 1; ; attempt++) {
+      const left = total - (Date.now() - started);
+      try {
+        return await call(action, payload, opts.url, Math.max(Math.min(CFG.REQUEST_TIMEOUT_MS, left), 1000));
+      } catch (err) {
+        if (retryOn.indexOf(err.code) === -1) throw err;
+        const wait = Math.min(base * attempt, maxDelay);
+        const delayMs = Math.round(wait * (0.5 + Math.random())); // ジッター（同時に失敗した人の再試行がそろわないように）
+        if (Date.now() - started + delayMs + minLeft > total) throw err; // 打ち切り
+        if (opts.onRetry) { try { opts.onRetry({ attempt: attempt + 1, code: err.code, delayMs }); } catch (e) { /* 表示の失敗は無視 */ } }
+        await sleep(delayMs);
+      }
+    }
   }
 
   /* ---------- 端末ID（localStorage と IndexedDB の両方に保存） ---------- */
@@ -161,7 +201,7 @@
   });
 
   window.Lottery = {
-    call, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet,
+    call, callWithRetry, RETRY_READ, RETRY_BUSY_ONLY, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet,
     getFlow, setFlow, clearFlow, tierForPoints, tierRangeText, goTo,
   };
 })();

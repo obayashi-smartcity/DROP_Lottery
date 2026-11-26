@@ -17,6 +17,12 @@ window.LOTTERY_CONFIG = {
   // 通信のタイムアウト（ミリ秒）
   REQUEST_TIMEOUT_MS: 20000,
 
+  // 混雑（BUSY）・通信エラー時の自動再試行（ミリ秒）。通信時間を含めて合計 RETRY_TOTAL_MS 程度で打ち切る（D-26）
+  // 待ち時間は RETRY_BASE_MS × 回数（上限 RETRY_MAX_DELAY_MS）に ±50% のランダムなずれを加える
+  RETRY_TOTAL_MS: 30000,
+  RETRY_BASE_MS: 2000,
+  RETRY_MAX_DELAY_MS: 6000,
+
   // 当選画面で引換状態を確認し直す間隔（ミリ秒）
   STATUS_POLL_MS: 30000,
 

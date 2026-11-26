@@ -23,10 +23,11 @@
     if (text !== undefined) coreText.textContent = text;
   }
 
-  /** 抽選中の表示（Loading... のまま） */
+  /** 抽選中の表示（Loading... のまま）。混雑で自動再試行しているときは、その旨を下に出す */
   function startDrawingText() {
     $('#drawingText').textContent = 'Loading...';
-    return () => {};
+    $('#drawingNote').hidden = true;
+    return () => { $('#drawingNote').hidden = true; };
   }
 
   function vibrate(pattern) {
@@ -183,7 +184,7 @@
     deviceId = await L.getDeviceId().catch(() => '');
 
     try {
-      const status = await L.call('status', { userId });
+      const status = await L.callWithRetry('status', { userId }, { retryOn: L.RETRY_READ });
       if (status.drawn) { // 抽選済み：完了画面として結果を表示
         $('#doneNote').hidden = false;
         render(status);
@@ -192,7 +193,7 @@
       // 未抽選なのにボタン選択やアンケートが済んでいなければ LP からやり直す
       if (!flow.tierId || !flow.surveyDone) { L.goTo('index.html'); return; }
 
-      const info = await L.call('info', { eventCode: flow.eventCode || '' });
+      const info = await L.callWithRetry('info', { eventCode: flow.eventCode || '' }, { retryOn: L.RETRY_READ });
       setEventName(info.eventName);
       if (!info.codeValid) {
         L.show('nocode');
@@ -215,17 +216,23 @@
     L.show('drawing');
     const stopText = startDrawingText();
     const started = Date.now();
+    let retried = false;
     try {
       const fp = await L.getFingerprint().catch(() => '');
-      const res = await L.call('draw', {
+      // draw は同じユーザーIDで何度呼んでも二重抽選にならない（2回目以降は前回の結果が返る）ので、通信エラーでも再試行してよい
+      const res = await L.callWithRetry('draw', {
         userId, points: flow.points, tierId: flow.tierId, eventCode: flow.eventCode || '', deviceId, fp,
+      }, {
+        retryOn: L.RETRY_READ,
+        onRetry: () => { retried = true; $('#drawingNote').hidden = false; },
       });
       const wait = CFG.DRAW_MIN_ANIMATION_MS - (Date.now() - started);
       if (wait > 0) await L.sleep(wait);
       stopText();
       await playReveal(res);
       L.setFlow({ surveyDone: false, tierId: '' }); // 抽選が確定したので、戻っても再抽選の画面にはしない
-      if (res.alreadyDrawn) $('#doneNote').hidden = false;
+      // 再試行した場合は、最初の要求で抽選が済んでいて alreadyDrawn になることがあるので「完了しています」は出さない
+      if (res.alreadyDrawn && !retried) $('#doneNote').hidden = false;
       render(res);
     } catch (err) {
       stopText();
@@ -238,7 +245,7 @@
       } else if (err.code === 'CLOSED') {
         try { showClosed(await L.call('info', { eventCode: flow.eventCode || '' })); } catch (e) { showClosed({}); }
       } else {
-        // 通信が途中で切れても抽選は確定している場合があるので、状態を確認する
+        // 再試行を打ち切った場合や、通信が途中で切れた場合でも、抽選は確定していることがあるので状態を確認する
         try {
           const status = await L.call('status', { userId });
           if (status.drawn) { await playReveal(status); render(status); return; }
@@ -269,12 +276,29 @@
     $('#redeemBtn').disabled = true;
     $('#redeemError').textContent = '';
     try {
-      const res = await L.call('redeemSelf', { userId, password: pw });
+      // 自動再試行は BUSY のときだけ（BUSY なら何も書き込まれていない）
+      const res = await L.callWithRetry('redeemSelf', { userId, password: pw }, {
+        retryOn: L.RETRY_BUSY_ONLY,
+        onRetry: () => { $('#redeemError').textContent = '混雑しています。自動で再試行しています…'; },
+      });
       $('#redeemPw').value = '';
+      $('#redeemError').textContent = '';
       vibrate([40, 30, 80]);
       render(res);
     } catch (err) {
-      $('#redeemError').textContent = err.message || '引き換えできませんでした';
+      if (err.code === 'NETWORK' || err.code === 'BAD_RESPONSE') {
+        // 引換が済んだかどうか分からない。もう一度送るとパスワード違いの回数を二重に数えるおそれがあるので、送らずに状態を確認する
+        try {
+          const status = await L.callWithRetry('status', { userId }, { retryOn: L.RETRY_READ });
+          if (status.drawn && status.redeemStatus === '引換済み') {
+            $('#redeemPw').value = '';
+            $('#redeemError').textContent = '';
+            render(status);
+            return;
+          }
+        } catch (e) { /* 確認できなければ下のエラー表示 */ }
+      }
+      $('#redeemError').textContent = err.message || '引き換えできませんでした'; // 入力欄はそのまま残す
     } finally {
       redeeming = false;
       $('#redeemBtn').disabled = false;

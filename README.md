@@ -55,6 +55,7 @@ assets/staff.js         スタッフ画面の処理
 assets/style.css        スタイル
 gas/lottery/            抽選GAS（DROP_Lottery）のソース。正本
 gas/survey/             アンケートGAS（DROP_Lottery_Survey_API）のソース。正本
+tools/loadtest/         負荷試験スクリプト（draw の同時実行。実行は手動）
 ```
 
 GAS のプロジェクトとスプレッドシートは、共有ドライブ「00_GAS」の「抽選システム」フォルダにあります。GAS のソースの正本はこのリポジトリの `gas/` です（直したらコミットしてから Apps Script エディタに貼り付ける）。
@@ -79,6 +80,7 @@ GAS のプロジェクトとスプレッドシートは、共有ドライブ「0
 | アンケートの設問 | `assets/survey-config.js`（新しい設問IDは Responses シートに列が自動で追加される） |
 | 「スタンプラリーに戻る」ボタンの戻り先（LP・結果画面に表示） | `assets/config.js` の `STAMP_RALLY_URL`（空にするとボタンを出さない） |
 | 遷移元から受け取る URL パラメータ名 | `assets/config.js` の `PARAM_USER_ID`（`account_id`）・`PARAM_POINTS`（`point`） |
+| 混雑・通信エラー時の自動再試行 | `assets/config.js` の `RETRY_TOTAL_MS`（合計の打ち切り、既定 30 秒）・`RETRY_BASE_MS`・`RETRY_MAX_DELAY_MS` |
 | GAS の URL | `assets/config.js` の `GAS_URL`（抽選）・`SURVEY_GAS_URL`（アンケート） |
 
 スプレッドシートの変更はすぐに反映されます（GAS の再デプロイは不要）。
@@ -153,5 +155,6 @@ Responses シートに1回答1行。受信日時・userId・ポイント・tierI
 ## 注意
 
 - このリポジトリに秘密情報（スタッフ PIN、署名鍵）を置かないでください。どちらも GAS のスクリプト プロパティにあります。引換パスワードは DB の Config シートにあります。
-- GAS の同時実行は1スクリプトあたり約30件までです。本番前に複数台で同時に抽選するテストをしてください。
+- GAS の同時実行は1スクリプトあたり約30件までです。本番前に同時に抽選するテストをしてください（`tools/loadtest/`。実行すると DB にデータが残るので、テスト環境で行い、終わったら `resetAllData` で消す）。
+- 抽選・引換は ScriptLock 1本で順番に処理します。ロックを取れなかった要求（BUSY）は Logs に記録され、画面は自動で再試行します（合計30秒程度）。成功時の Logs の詳細にはロックの待ち時間・保持時間（`wait=…ms hold=…ms`）が入ります。
 - CacheService の上限により、スタッフのログインは6時間で切れます。

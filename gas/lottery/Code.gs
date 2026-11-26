@@ -109,7 +109,8 @@ function doPost(e) {
 
 /** イベント情報・受付状態・ボタン（Tiers）の一覧。確率は返さない */
 function apiInfo_(req) {
-  const cfg = getConfig_();
+  const ss = ss_();
+  const cfg = getConfig_(ss);
   const now = new Date();
   return {
     ok: true,
@@ -122,79 +123,118 @@ function apiInfo_(req) {
     codeRequired: !!cfg.EVENT_CODE, // EVENT_CODE が空なら合言葉なし
     codeValid: !cfg.EVENT_CODE || String(req.eventCode || '') === cfg.EVENT_CODE,
     maxPoints: cfg.MAX_POINTS, // 画面でも同じ上限で確認する
-    tiers: getTiers_(ss_()).map((t) => ({ id: t.id, label: t.label, min: t.min, max: t.max })),
+    tiers: getTiers_(ss).map((t) => ({ id: t.id, label: t.label, min: t.min, max: t.max })),
   };
 }
 
-/** 抽選。ユーザーIDごとに1回。抽選済みなら前回の結果を返す */
+/**
+ * 抽選。ユーザーIDごとに1回。抽選済みなら前回の結果を返す。
+ * ロック（ScriptLock）を持つのは「抽選済みの再確認・当落・景品の選択・追記」の間だけにする（#5）。
+ *   ロックの前: 入力の確認、抽選済みの判定（抽選済みなら回数 +1 して返す。ロックは取らない）、受付時間、ボタンの確認、景品の構成の読み込み
+ *   ロックの中: 抽選済みの再確認（二重抽選の防止）、Winners を1回読んで当落と景品を決める、Winners・Users に追記、flush
+ *   ロックの後: ログ、結果の組み立て
+ */
 function apiDraw_(req) {
   const userId = requireUserId_(req.userId);
-  const cfg = getConfig_();
-  const points = requirePoints_(req.points, cfg.MAX_POINTS);
+  const ss = ss_();
+  const cfg = getConfig_(ss);
+  let points;
+  try {
+    points = requirePoints_(req.points, cfg.MAX_POINTS);
+  } catch (err) {
+    log_('draw', userId, 'BAD_POINTS', `points=${String(req.points).slice(0, 20)} max=${cfg.MAX_POINTS}`, ss);
+    throw err;
+  }
   const tierId = String(req.tierId || '').slice(0, 32);
   const deviceId = optionalDeviceId_(req.deviceId);
   const fp = String(req.fp || '').replace(/[^0-9a-f]/gi, '').slice(0, 64);
   const eventCode = String(req.eventCode || '').slice(0, 64);
   if (cfg.EVENT_CODE && eventCode !== cfg.EVENT_CODE) throw appError_('INVALID_CODE', 'イベントコードが正しくありません');
 
-  return withLock_(() => {
-    const ss = ss_();
+  // ---- ロックの前 ----
+  const uSheet = ss.getSheetByName(SHEET.USERS);
+  const drawn = readUser_(uSheet, userId);
+  if (drawn) return drawRepeat_(ss, cfg, uSheet, drawn, userId);
+
+  if (!isOpen_(cfg, new Date())) throw appError_('CLOSED', '現在は抽選の受付時間外です');
+  const tier = tierForPoints_(getTiers_(ss), points);
+  if (!tier) throw appError_('NO_TIER', 'スタンプ数が足りないため抽選できません');
+  if (tier.id !== tierId) {
+    log_('draw', userId, 'BAD_TIER', `tierId=${tierId} points=${points} expected=${tier.id}`, ss);
+    throw appError_('BAD_TIER', '選んだボタンとスタンプ数が合いません。最初からやり直してください');
+  }
+  const prizes = getPrizes_(ss); // 景品の構成（手入力の列）。残り数はロックの中で Winners から数える
+  const wSheet = ss.getSheetByName(SHEET.WINNERS);
+
+  // ---- ロックの中 ----
+  const timing = {};
+  const out = withLock_(() => {
+    // ロックの前の確認だけに頼らず、もう一度確認する（同じユーザーIDの同時の抽選で二重にならないように）
+    if (findRow_(uSheet, COL.USERS.ID, userId)) return { repeat: true };
+
     const now = new Date();
-    const uSheet = ss.getSheetByName(SHEET.USERS);
-    const uRow = findRow_(uSheet, COL.USERS.ID, userId);
-
-    if (uRow) {
-      const countCell = uSheet.getRange(uRow, COL.USERS.COUNT);
-      countCell.setValue(Number(countCell.getValue() || 0) + 1);
-      const ticketId = String(uSheet.getRange(uRow, COL.USERS.TICKET).getValue() || '');
-      log_('draw', userId, 'repeat', ticketId);
-      return Object.assign(buildResult_(ss, cfg, ticketId), { alreadyDrawn: true });
-    }
-
-    if (!isOpen_(cfg, now)) throw appError_('CLOSED', '現在は抽選の受付時間外です');
-
-    const tier = tierForPoints_(getTiers_(ss), points);
-    if (!tier) throw appError_('NO_TIER', 'スタンプ数が足りないため抽選できません');
-    if (tier.id !== tierId) throw appError_('BAD_TIER', '選んだボタンとスタンプ数が合いません。最初からやり直してください');
-
-    let ticketId = '';
+    const winners = readRows_(wSheet, COL.WINNERS.PRIZE); // ticketId・prizeId。Winners を読むのはこの1回だけ
+    const won = countByPrize_(winners);
+    const details = [];
     let prize = null;
     let consolation = false;
-    const details = [];
     if (randomFloat_() * 100 < tier.prob) {
-      prize = pickPrize_(ss, false);
+      prize = choosePrize_(prizes, won, false);
       if (!prize) details.push('当選したが景品切れ');
     }
     if (!prize) { // 通常の景品に当たらなかった人には、はずれ景品（残っていれば）
-      prize = pickPrize_(ss, true);
+      prize = choosePrize_(prizes, won, true);
       consolation = !!prize;
       if (!prize) details.push('はずれ景品なし');
     }
+    let ticketId = '';
     if (prize) {
-      const wSheet = ss.getSheetByName(SHEET.WINNERS);
-      ticketId = newTicketId_(wSheet);
-      appendRowAsText_(wSheet, [
-        ticketId, prize.id, prize.name, newRedeemCode_(ss), STATUS.UNREDEEMED, now, '', '', deviceId, userId,
+      ticketId = newTicketId_(winners);
+      appendRowAsText_(wSheet, [ // 引換コード（D列）は発行しない（D-25）
+        ticketId, prize.id, prize.name, '', STATUS.UNREDEEMED, now, '', '', deviceId, userId,
       ], [COL.WINNERS.USER]);
     }
     appendRowAsText_(uSheet, [
       userId, now, 1, prize && !consolation ? '当たり' : 'はずれ', ticketId, points, tier.id, deviceId, fp,
     ], [COL.USERS.ID]);
     SpreadsheetApp.flush();
-    log_('draw', userId, consolation ? 'consolation' : (prize ? 'win' : 'lose'), [tier.id, points + 'pt', ticketId].concat(details).filter(String).join(' '));
-    return Object.assign(buildResult_(ss, cfg, ticketId), { alreadyDrawn: false });
-  });
+    return { prize: prize, consolation: consolation, ticketId: ticketId, details: details };
+  }, { action: 'draw', actor: userId, ss: ss, timing: timing });
+
+  // ---- ロックの後 ----
+  if (out.repeat) { // ロックを待っている間に、同じユーザーIDの抽選が先に終わっていた
+    const user = readUser_(uSheet, userId);
+    if (!user) throw appError_('NOT_FOUND', '抽選結果が見つかりません。もう一度お試しください');
+    return drawRepeat_(ss, cfg, uSheet, user, userId);
+  }
+  const result = out.consolation ? 'consolation' : (out.prize ? 'win' : 'lose');
+  log_('draw', userId, result, [tier.id, points + 'pt', out.ticketId].concat(out.details, [timingText_(timing)]).filter(String).join(' '), ss);
+  const w = out.prize ? {
+    ticketId: out.ticketId, prizeId: out.prize.id, prizeName: out.prize.name, code: '',
+    status: STATUS.UNREDEEMED, redeemedAt: '', consolation: out.consolation,
+  } : null;
+  return Object.assign(buildResult_(ss, cfg, out.ticketId, w), { alreadyDrawn: false });
+}
+
+/**
+ * 抽選済みの人の再要求。回数 +1・ログ・結果の組み立てをすべてロックの外で行う（D-24）。
+ * 同時アクセスで回数が少なく記録されることがあるが、監視の目安として許容する。
+ */
+function drawRepeat_(ss, cfg, uSheet, user, userId) {
+  const ticketId = String(user.values[COL.USERS.TICKET - 1] || '');
+  uSheet.getRange(user.row, COL.USERS.COUNT).setValue((Number(user.values[COL.USERS.COUNT - 1]) || 0) + 1);
+  log_('draw', userId, 'repeat', ticketId, ss);
+  return Object.assign(buildResult_(ss, cfg, ticketId), { alreadyDrawn: true });
 }
 
 /** 抽選結果の再表示（ユーザーIDで確認） */
 function apiStatus_(req) {
   const userId = requireUserId_(req.userId);
   const ss = ss_();
-  const uSheet = ss.getSheetByName(SHEET.USERS);
-  const uRow = findRow_(uSheet, COL.USERS.ID, userId);
-  if (!uRow) return { ok: true, drawn: false };
-  const ticketId = String(uSheet.getRange(uRow, COL.USERS.TICKET).getValue() || '');
-  return Object.assign(buildResult_(ss, getConfig_(), ticketId), { drawn: true });
+  const user = readUser_(ss.getSheetByName(SHEET.USERS), userId);
+  if (!user) return { ok: true, drawn: false };
+  const ticketId = String(user.values[COL.USERS.TICKET - 1] || '');
+  return Object.assign(buildResult_(ss, getConfig_(ss), ticketId), { drawn: true });
 }
 
 /**
@@ -202,54 +242,83 @@ function apiStatus_(req) {
  * 未引換 → 引換済み を1回だけ行う。パスワードは Config シートの REDEEM_PASSWORD。
  * 口頭で伝えると大文字・小文字が伝わりにくく、先頭を自動で大文字にする端末もあるため、両方を小文字にそろえて比べる。
  * （全角→半角は画面側で NFKC 正規化してから送る）
+ *
+ * ロックを持つのは、パスワードが正しいときの「行の読み直し・在庫の確認・引換済みへの更新」の間だけにする（#5）。
+ *   ロックの前: 失敗回数の上限、当選の検索と状態（引換済み・失効・期限切れ）、パスワードの照合（違えば記録してエラー）
+ *   ロックの中: 行の読み直し（行ずれの確認）、未引換の確認、在庫の確認、更新、flush
+ *   ロックの後: 失敗回数のリセット、ログ、結果の組み立て
  */
 function apiRedeemSelf_(req) {
   const userId = requireUserId_(req.userId);
   const password = String(req.password == null ? '' : req.password).trim().toLowerCase();
-  const cfg = getConfig_();
+  const ss = ss_();
+  const cfg = getConfig_(ss);
   if (!cfg.REDEEM_PASSWORD) throw appError_('NOT_CONFIGURED', '引換パスワードが未設定です（スタッフにお知らせください）');
 
+  // ---- ロックの前 ----
   const cache = CacheService.getScriptCache();
   const failKey = 'rfail:' + userId;
   const fails = Number(cache.get(failKey) || 0);
-  if (fails >= cfg.REDEEM_MAX_FAIL) throw appError_('LOCKED', `パスワードの入力ミスが続いたため、${cfg.REDEEM_LOCK_MIN}分間は引き換えできません`);
+  if (fails >= cfg.REDEEM_MAX_FAIL) {
+    log_('redeemSelf', userId, 'LOCKED', `fails=${fails}`, ss);
+    throw appError_('LOCKED', `パスワードの入力ミスが続いたため、${cfg.REDEEM_LOCK_MIN}分間は引き換えできません`);
+  }
 
-  return withLock_(() => {
-    const ss = ss_();
-    const uSheet = ss.getSheetByName(SHEET.USERS);
-    const uRow = findRow_(uSheet, COL.USERS.ID, userId);
-    const ticketId = uRow ? String(uSheet.getRange(uRow, COL.USERS.TICKET).getValue() || '') : '';
-    if (!ticketId || !findRow_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.TICKET, ticketId)) {
-      throw appError_('NOT_FOUND', '当選が見つかりません');
+  const user = readUser_(ss.getSheetByName(SHEET.USERS), userId);
+  const ticketId = user ? String(user.values[COL.USERS.TICKET - 1] || '') : '';
+  const wSheet = ss.getSheetByName(SHEET.WINNERS);
+  const w = ticketId ? findWinnerByTicket_(wSheet, ticketId) : null;
+  if (!w) throw appError_('NOT_FOUND', '当選が見つかりません');
+  if (w.status === STATUS.REDEEMED) return Object.assign(buildResult_(ss, cfg, ticketId, w), { alreadyRedeemed: true });
+  if (w.status === STATUS.VOID) throw appError_('VOID', 'この当選は無効になっています');
+  if (winnerView_(w, cfg).expired) throw appError_('EXPIRED', '引換期限を過ぎています');
+
+  if (!safeEqual_(password, cfg.REDEEM_PASSWORD.toLowerCase())) { // 違うときはロックを取らない
+    cache.put(failKey, String(fails + 1), cfg.REDEEM_LOCK_MIN * 60);
+    log_('redeemSelf', userId, 'NG', `パスワード違い ${fails + 1}回目`, ss);
+    const left = cfg.REDEEM_MAX_FAIL - fails - 1;
+    if (left <= 0) { // この失敗で上限に達した（次からは LOCKED）
+      throw appError_('BAD_PASSWORD', `入力ミスが上限に達しました。${cfg.REDEEM_LOCK_MIN}分後にもう一度入力してください`);
     }
-    const w = findWinner_(ss, { qr: ticketId + '.' + sign_(ticketId) }); // ロック内で最新の状態を読む
-    const view = winnerView_(w, cfg);
-    if (w.status === STATUS.REDEEMED) return Object.assign(buildResult_(ss, cfg, ticketId), { alreadyRedeemed: true });
-    if (w.status === STATUS.VOID) throw appError_('VOID', 'この当選は無効になっています');
-    if (view.expired) throw appError_('EXPIRED', '引換期限を過ぎています');
+    throw appError_('BAD_PASSWORD', `パスワードが違います（あと${left}回）`);
+  }
+  const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
 
-    if (!safeEqual_(password, cfg.REDEEM_PASSWORD.toLowerCase())) {
-      cache.put(failKey, String(fails + 1), cfg.REDEEM_LOCK_MIN * 60);
-      log_('redeemSelf', userId, 'NG', `パスワード違い ${fails + 1}回目`);
-      const left = cfg.REDEEM_MAX_FAIL - fails - 1;
-      if (left <= 0) { // この失敗で上限に達した（次からは LOCKED）
-        throw appError_('BAD_PASSWORD', `入力ミスが上限に達しました。${cfg.REDEEM_LOCK_MIN}分後にもう一度入力してください`);
-      }
-      throw appError_('BAD_PASSWORD', `パスワードが違います（あと${left}回）`);
+  // ---- ロックの中（パスワードが正しいときだけ） ----
+  const timing = {};
+  const out = withLock_(() => {
+    // 行を読み直し、その行が想定どおりの当選かを確かめてから書く（並べ替え・行の挿入による行ずれ対策。#11・#19）
+    let row = w.row;
+    let cur = readWinner_(wSheet, row);
+    let moved = false;
+    if (cur.ticketId !== ticketId) { // ずれていたら、その行には書かずに探し直す
+      moved = true;
+      row = findRow_(wSheet, COL.WINNERS.TICKET, ticketId);
+      cur = row ? readWinner_(wSheet, row) : null;
+      if (!cur || cur.ticketId !== ticketId) throw appError_('NOT_FOUND', '当選が見つかりません。もう一度お試しください');
     }
+    cur.consolation = !!(prize && prize.consolation);
+    if (cur.status === STATUS.REDEEMED) return { already: true, w: cur, moved: moved }; // 同時に押された
+    if (cur.status === STATUS.VOID) throw appError_('VOID', 'この当選は無効になっています');
 
-    const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
-    const redeemed = countWinners_(ss, w.prizeId, STATUS.REDEEMED);
+    const redeemed = readRows_(wSheet, COL.WINNERS.STATUS)
+      .filter((r) => String(r[COL.WINNERS.PRIZE - 1]) === cur.prizeId && r[COL.WINNERS.STATUS - 1] === STATUS.REDEEMED).length;
     if (!prize || prize.initial - redeemed <= 0) throw appError_('OUT_OF_STOCK', 'この景品の在庫がありません（スタッフにお知らせください）');
 
-    const sheet = ss.getSheetByName(SHEET.WINNERS);
-    sheet.getRange(w.row, COL.WINNERS.STATUS).setValue(STATUS.REDEEMED);
-    sheet.getRange(w.row, COL.WINNERS.REDEEMED_AT, 1, 2).setValues([[new Date(), 'パスワード']]);
+    const now = new Date();
+    wSheet.getRange(row, COL.WINNERS.STATUS).setValue(STATUS.REDEEMED);
+    wSheet.getRange(row, COL.WINNERS.REDEEMED_AT, 1, 2).setValues([[now, 'パスワード']]);
     SpreadsheetApp.flush();
-    cache.remove(failKey);
-    log_('redeemSelf', userId, 'OK', w.ticketId);
-    return Object.assign(buildResult_(ss, cfg, ticketId), { alreadyRedeemed: false });
-  });
+    cur.status = STATUS.REDEEMED;
+    cur.redeemedAt = now;
+    return { already: false, w: cur, moved: moved };
+  }, { action: 'redeemSelf', actor: userId, ss: ss, timing: timing });
+
+  // ---- ロックの後 ----
+  cache.remove(failKey); // パスワードは正しかった
+  const detail = [ticketId, out.moved ? 'row-moved' : '', timingText_(timing)].filter(String).join(' ');
+  log_('redeemSelf', userId, out.already ? 'already' : 'OK', detail, ss);
+  return Object.assign(buildResult_(ss, cfg, ticketId, out.w), { alreadyRedeemed: out.already });
 }
 
 /* ============================== スタッフ向け ============================== */
@@ -479,18 +548,36 @@ function appError_(code, message, extra) {
   return err;
 }
 
-function withLock_(fn) {
+/**
+ * ScriptLock を取って fn を実行する。LOCK_WAIT_MS 待っても取れなければ BUSY（Logs に操作名と待った時間を残す）。
+ * opt: { action, actor, ss, timing }。timing を渡すと、ロック待ち時間（wait）と保持時間（hold）をミリ秒で入れる
+ */
+function withLock_(fn, opt) {
+  opt = opt || {};
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(LOCK_WAIT_MS)) throw appError_('BUSY', '混雑しています。少し待ってからもう一度お試しください');
+  const t0 = Date.now();
+  if (!lock.tryLock(LOCK_WAIT_MS)) {
+    try { log_(opt.action || 'lock', opt.actor || '', 'BUSY', `wait=${Date.now() - t0}ms`, opt.ss); } catch (e) { /* ログに失敗しても BUSY を返す */ }
+    throw appError_('BUSY', '混雑しています。少し待ってからもう一度お試しください');
+  }
+  const t1 = Date.now();
+  if (opt.timing) opt.timing.wait = t1 - t0;
   try {
     return fn();
   } finally {
+    if (opt.timing) opt.timing.hold = Date.now() - t1;
     lock.releaseLock();
   }
 }
 
-function getConfig_() {
-  const sheet = ss_().getSheetByName(SHEET.CONFIG);
+/** ログの詳細欄に付けるロックの計測値 */
+function timingText_(t) {
+  return `wait=${t.wait}ms hold=${t.hold}ms`;
+}
+
+/** Config シート。ss を渡すと開き直さずに使う */
+function getConfig_(ss) {
+  const sheet = (ss || ss_()).getSheetByName(SHEET.CONFIG);
   const range = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 2);
   const values = range.getValues();
   const shown = range.getDisplayValues(); // パスワードは表示どおりの文字列で比べる（0884 が 884 にならないように）
@@ -522,11 +609,9 @@ function toPositiveInt_(v, fallback) {
   return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
-/** Config の MAX_POINTS（0 以上の整数）。行がない・空欄・不正な値なら DEFAULT_MAX_POINTS */
+/** Config の MAX_POINTS（正の整数）。行がない・空欄・0 以下・不正な値なら DEFAULT_MAX_POINTS（P-04: 0 だと全員が抽選できなくなるため） */
 function toMaxPoints_(v) {
-  if (v === '' || v == null) return DEFAULT_MAX_POINTS;
-  const n = Number(v);
-  return Number.isInteger(n) && n >= 0 ? n : DEFAULT_MAX_POINTS;
+  return toPositiveInt_(v, DEFAULT_MAX_POINTS);
 }
 
 function isOpen_(cfg, now) {
@@ -556,15 +641,25 @@ function tierForPoints_(tiers, points) {
   return tiers.find((t) => points >= t.min && (t.max === null || points <= t.max)) || null;
 }
 
+/** Winners の行（ticketId・prizeId）から、景品ごとの当選数を数える */
+function countByPrize_(winners) {
+  const won = {};
+  winners.forEach((r) => {
+    const id = String(r[COL.WINNERS.PRIZE - 1]);
+    if (id) won[id] = (won[id] || 0) + 1;
+  });
+  return won;
+}
+
 /**
  * 当選可能残（初期数 − 当選数）の多さに比例して景品を選ぶ。残りがなければ null。
  * consolation が true ならはずれ景品（区分「はずれ」）から、false なら通常の景品から選ぶ。
+ * won は countByPrize_ の結果（ロックの中で読んだ Winners から作る）。prizeId は文字列で比べる（#9）
  */
-function pickPrize_(ss, consolation) {
-  const winners = readRows_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.PRIZE);
-  const pool = getPrizes_(ss)
+function choosePrize_(prizes, won, consolation) {
+  const pool = prizes
     .filter((p) => p.consolation === !!consolation)
-    .map((p) => Object.assign({}, p, { left: p.initial - winners.filter((r) => r[COL.WINNERS.PRIZE - 1] === p.id).length }))
+    .map((p) => Object.assign({}, p, { left: p.initial - (won[p.id] || 0) }))
     .filter((p) => p.left > 0);
   const total = pool.reduce((s, p) => s + p.left, 0);
   if (total <= 0) return null;
@@ -576,10 +671,12 @@ function pickPrize_(ss, consolation) {
   return null;
 }
 
-function newTicketId_(wSheet) {
+/** ticketId を作る。重複の確認は、ロックの中で読んだ Winners の行を使ってメモリ上で行う */
+function newTicketId_(winners) {
+  const used = new Set(winners.map((r) => String(r[COL.WINNERS.TICKET - 1])));
   for (let attempt = 0; attempt < 20; attempt++) {
     const id = 'W' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MMdd') + '-' + String(randomInt_(1000000)).padStart(6, '0');
-    if (!findRow_(wSheet, COL.WINNERS.TICKET, id)) return id;
+    if (!used.has(id)) return id;
   }
   throw new Error('ticketId を作れませんでした');
 }
@@ -632,6 +729,20 @@ function findRow_(sheet, col, value) {
   if (last < 2 || !value) return 0;
   const cell = sheet.getRange(2, col, last - 1, 1).createTextFinder(String(value)).matchEntireCell(true).matchCase(true).findNext();
   return cell ? cell.getRow() : 0;
+}
+
+/**
+ * Users からユーザーIDの行を探して読む（{ row, values } / なければ null）。
+ * 検索してから読むまでに行がずれた場合（並べ替えなど）に備えて、読んだ行のユーザーIDを確かめ、違えば1回だけ探し直す
+ */
+function readUser_(uSheet, userId) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const row = findRow_(uSheet, COL.USERS.ID, userId);
+    if (!row) return null;
+    const values = uSheet.getRange(row, 1, 1, COL.USERS.TICKET).getValues()[0];
+    if (String(values[COL.USERS.ID - 1]) === userId) return { row: row, values: values };
+  }
+  return null;
 }
 
 function readRows_(sheet, cols) {
@@ -691,6 +802,17 @@ function findWinner_(ss, req) {
     throw appError_('BAD_REQUEST', 'QRコードか引換コードを指定してください');
   }
   if (!row) throw appError_('NOT_FOUND', '該当する当選が見つかりません');
+  return readWinner_(sheet, row);
+}
+
+/** ticketId で当選を探す（署名の確認はしない。参加者向けの内部処理用）。なければ null */
+function findWinnerByTicket_(sheet, ticketId) {
+  const row = findRow_(sheet, COL.WINNERS.TICKET, ticketId);
+  return row ? readWinner_(sheet, row) : null;
+}
+
+/** Winners の1行を読む */
+function readWinner_(sheet, row) {
   const v = sheet.getRange(row, 1, 1, COL.WINNERS.USER).getValues()[0];
   return {
     row: row,
@@ -720,27 +842,33 @@ function winnerView_(w, cfg) {
   };
 }
 
-/** 参加者に返す抽選結果 */
-function buildResult_(ss, cfg, ticketId) {
+/**
+ * 参加者に返す抽選結果。w（当選の行の内容）が分かっていれば渡す（シートを読み直さない）。
+ * w.consolation が未設定なら Prizes から調べる
+ */
+function buildResult_(ss, cfg, ticketId, w) {
   const base = { ok: true, eventName: cfg.EVENT_NAME, redeemDeadline: iso_(cfg.REDEEM_DEADLINE) };
   if (!ticketId) return Object.assign(base, { result: 'lose' });
-  const row = findRow_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.TICKET, ticketId);
-  if (!row) return Object.assign(base, { result: 'lose' });
-  const w = findWinner_(ss, { qr: ticketId + '.' + sign_(ticketId) });
-  const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
-  const consolation = !!(prize && prize.consolation);
+  if (!w) w = findWinnerByTicket_(ss.getSheetByName(SHEET.WINNERS), ticketId);
+  if (!w) return Object.assign(base, { result: 'lose' });
+  let consolation = w.consolation;
+  if (consolation === undefined) {
+    const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
+    consolation = !!(prize && prize.consolation);
+  }
   return Object.assign(base, {
     result: consolation ? 'lose' : 'win', // はずれ景品は「はずれ」扱い（consolation: true で景品と引換情報を付ける）
     consolation: consolation,
     prizeName: w.prizeName,
     ticketId: w.ticketId,
     qr: w.ticketId + '.' + sign_(w.ticketId),
-    redeemCode: w.code,
+    redeemCode: w.code || '',
     redeemStatus: w.status,
     redeemedAt: iso_(w.redeemedAt),
   });
 }
 
+/** 旧方式の引換コード。v4.0-04 から発行しない（D-25）。旧タブ・既存データの互換のために残す */
 function newRedeemCode_(ss) {
   const sheet = ss.getSheetByName(SHEET.WINNERS);
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -777,6 +905,7 @@ function randomInt_(n) {
   return Math.floor(randomFloat_() * n);
 }
 
-function log_(action, actor, result, detail) {
-  ss_().getSheetByName(SHEET.LOGS).appendRow([new Date(), action, actor, result, detail]);
+/** Logs に1行追加する。ss を渡すと開き直さずに使う */
+function log_(action, actor, result, detail, ss) {
+  (ss || ss_()).getSheetByName(SHEET.LOGS).appendRow([new Date(), action, actor, result, detail]);
 }
