@@ -143,7 +143,7 @@
     try { sessionStorage.removeItem(FLOW_KEY); } catch (e) { /* ignore */ }
   }
 
-  /** ポイントに合うボタン（GAS と同じ判定。範囲が重なっていたら上の行を優先） */
+  /** スタンプ数に合うボタン（GAS と同じ判定。範囲が重なっていたら上の行を優先） */
   function tierForPoints(tiers, points) {
     return (tiers || []).find((t) => points >= t.min && (t.max === null || t.max === undefined || points <= t.max)) || null;
   }

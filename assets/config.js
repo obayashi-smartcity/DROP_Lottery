@@ -6,15 +6,13 @@ window.LOTTERY_CONFIG = {
   // アンケートGAS（DROP_Lottery_Survey_API）の URL
   SURVEY_GAS_URL: 'https://script.google.com/macros/s/AKfycbxd_8nC9tJUyLXnqon1qpzALdbkYm5jVr_op9AAuRJnqM4t2x7QQckpRQr32pF6tIKF/exec',
 
-  // 遷移元サイトから受け取る URL パラメータ名（仕様が決まったら合わせる）
-  // 例: index.html?uid=ABC123&nn=たろう&pt=30 で開くと入力欄に入った状態で表示される
-  PARAM_USER_ID: 'uid',
-  PARAM_NICKNAME: 'nn',
-  PARAM_POINTS: 'pt',
+  // 遷移元（スタンプラリー）から受け取る URL パラメータ名
+  // 例: index.html?account_id=ABC123&point=30（手入力欄はない。パラメータがなければ「スタンプラリーのページから開いてください」）
+  PARAM_USER_ID: 'account_id',
+  PARAM_POINTS: 'point',
 
   // 「スタンプラリーに戻る」ボタンの戻り先（空にするとボタンを表示しない）
-  // ※ 仮のURL。スタンプラリーのURLが決まったら差し替える
-  STAMP_RALLY_URL: 'https://drop.machiapps.com/nakanoshima/',
+  STAMP_RALLY_URL: 'https://drop.machiapps.com/collab-a/',
 
   // 通信のタイムアウト（ミリ秒）
   REQUEST_TIMEOUT_MS: 20000,

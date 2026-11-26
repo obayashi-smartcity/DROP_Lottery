@@ -19,34 +19,20 @@
       <h1 id="eventName" class="brand-title">特典抽選会</h1>
     </header>
 
-    <!-- ユーザーID・ニックネーム・スタンプ数の入力（遷移元サイトから渡す仕様が決まるまでの仮） -->
-    <section data-view="entry" class="panel card">
-      <p class="lead center">ユーザーID・ニックネーム・<br>スタンプ数を入力してください。</p>
-      <form id="entryForm" class="form" novalidate>
-        <label>ユーザーID
-          <input id="userId" type="text" maxlength="100" autocomplete="off" autocapitalize="off" spellcheck="false" required>
-        </label>
-        <label>ニックネーム
-          <input id="nickname" type="text" maxlength="30" autocomplete="nickname" required>
-        </label>
-        <label>スタンプ数
-          <input id="points" type="number" inputmode="numeric" min="0" step="1" required>
-        </label>
-        <button class="btn btn-primary btn-xl" type="submit">次へ</button>
-        <p class="error" id="entryError" role="alert"></p>
-      </form>
+    <!-- 遷移元（スタンプラリー）から ?account_id=…&point=… で来なかったとき -->
+    <section data-view="noparam" class="panel card center" hidden>
+      <h2 class="h2">スタンプラリーのページから<br>開いてください</h2>
+      <p class="muted">抽選にはスタンプラリーのページから進んでください。</p>
     </section>
 
-    <section data-view="loading" class="panel center" hidden>
+    <section data-view="loading" class="panel center">
       <p class="status-text status-text-en">Loading...</p>
     </section>
 
     <!-- スタンプ数に応じたボタン -->
     <section data-view="tiers" class="panel" hidden>
       <div class="summary">
-        <span><strong id="sumNick"></strong> さん</span>
         <span><strong id="sumPoints"></strong> スタンプ</span>
-        <button id="changeBtn" class="link" type="button">入力し直す</button>
       </div>
       <p class="lead center" id="tierLead"></p>
       <div id="tierList" class="tier-list"></div>

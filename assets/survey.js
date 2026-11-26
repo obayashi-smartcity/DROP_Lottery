@@ -101,7 +101,7 @@
         tierId: flow.tierId,
         tierLabel: flow.tierLabel,
         deviceId: deviceId,
-        params: { userId: flow.userId, nickname: flow.nickname || '', points: flow.points, tierId: flow.tierId, eventCode: flow.eventCode || '' },
+        params: { userId: flow.userId, points: flow.points, tierId: flow.tierId, eventCode: flow.eventCode || '' },
         answers: answers,
       }, CFG.SURVEY_GAS_URL);
       L.setFlow({ surveyDone: true });
@@ -114,7 +114,6 @@
     }
   });
 
-  $('#sumNick').textContent = flow.nickname || '';
   $('#sumTier').textContent = `${flow.tierLabel || ''}（${Number(flow.points).toLocaleString('ja-JP')} スタンプ）`;
   renderQuestions();
   L.show('form');
