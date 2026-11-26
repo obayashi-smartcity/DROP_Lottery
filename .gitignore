@@ -1,0 +1,40 @@
+# このリポジトリは GitHub Pages でそのまま公開される（.nojekyll）。
+# コミットしたファイルは 誰でも読めるので、
+# 社内メモ・秘密情報・個人データは置かない。
+
+# ---- 社内メモ（技術メモ・レビュー結果・チャット引継ぎ） ----
+.memo/
+
+# ---- 秘密情報（PIN・署名鍵・引換パスワードは GAS / DB 側にだけ置く） ----
+.env
+.env.*
+*.pem
+*.key
+# clasp を使う場合の認証情報（.clasp.json はプロジェクト設定なので対象外）
+.clasprc.json
+
+# ---- GAS・DB の手元コピー（ソースは共有ドライブで管理。リポジトリには置かない） ----
+*.gs
+appsscript.json
+# スプレッドシートの書き出し（参加者のユーザーID等を含みうる）
+*.xlsx
+*.csv
+
+# ---- Claude Code の個人設定 ----
+.claude/settings.local.json
+
+# ---- エディタ ----
+.vscode/
+.idea/
+*.swp
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- ツール類（現在は未使用。導入したときのため） ----
+node_modules/
+npm-debug.log*
+*.log
