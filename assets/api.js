@@ -226,11 +226,13 @@
 
   /** 再読み込みの案内（画面全体）。古い style.css でも崩れないよう、スタイルはここに直接書く */
   function showReloadNotice() {
+    let bg = '#F3E9E2'; // 画面全体の背景色に合わせる（BG_COLOR。読めなければベージュ）
+    try { bg = getComputedStyle(document.body).backgroundColor || bg; } catch (e) { /* ベージュのまま */ }
     const box = document.createElement('div');
     box.className = 'reload-notice';
     box.setAttribute('role', 'alert');
     box.style.cssText = 'position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;'
-      + 'padding:24px;background:#F3E9E2;color:#000;text-align:center;font-size:16px;line-height:1.7;';
+      + `padding:24px;background:${bg};color:#000;text-align:center;font-size:16px;line-height:1.7;`;
     const p = document.createElement('p');
     p.style.cssText = 'margin:0;white-space:pre-line;';
     p.textContent = RELOAD_TEXT;

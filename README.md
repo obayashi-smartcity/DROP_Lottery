@@ -46,7 +46,8 @@ LP（index.html） → アンケート（survey.html） → 抽選（lottery.htm
 index.html              LP（URL で受け取ったスタンプ数に合うボタンの選択）
 survey.html             アンケート
 lottery.html            抽選・結果・引換・完了画面
-assets/config.js        GAS の URL、URL パラメータ名、画面のバージョンなどの設定
+assets/config.js        GAS の URL、URL パラメータ名、画面のバージョン、背景色などの設定
+assets/theme.js         画面全体の背景色（BG_COLOR）を、ページを描く前に当てる
 assets/survey-config.js アンケートの設問
 assets/api.js           GAS 呼び出し、画面間の状態（sessionStorage）、共通処理
 assets/lp.js            LP の処理
@@ -99,6 +100,7 @@ GAS のプロジェクトとスプレッドシートは、共有ドライブ「0
 | アンケートの設問 | `assets/survey-config.js`（新しい設問IDは Responses シートに列が自動で追加される。`otherOption`（選ぶと自由記述の入力欄を出す選択肢。内容は `<設問ID>_other` の列）・`exclusiveOptions`（ほかと同時に選べない選択肢）も指定できる） |
 | 結果画面の文言（見出し・「抽選特典」「参加賞」・案内文） | `lottery.html` と `assets/lottery.js` の `TEXT` に直書き |
 | 画面のバージョン（右上に表示） | `assets/config.js` の `APP_VERSION` と、3つの HTML の `?v=`（**必ず同時に変える**。下の「画面のバージョン」） |
+| 画面全体の背景色 | `assets/config.js` の `BG_COLOR`（「#」＋16進6桁。例: `'#CCE0C7'`。今は `#CCE0C7`）。空・形式が違う（`'#CCE'` のような3桁、色名、# なし、前後の空白など）ときは、ベージュ（`#F3E9E2`。`style.css` の既定値）で表示する。`config.js` が読めないときもベージュ。変わるのは画面全体の背景とブラウザのアドレスバーなどの色（`theme-color`）だけで、カード・ボタン・入力欄などの色は変わらない。変えたら画面のバージョンを上げる |
 | 「スタンプラリーに戻る」ボタンの戻り先（LP・結果画面に表示） | `assets/config.js` の `STAMP_RALLY_URL`（空にするとボタンを出さない） |
 | 遷移元から受け取る URL パラメータ名 | `assets/config.js` の `PARAM_USER_ID`（`account_id`）・`PARAM_POINTS`（`point`） |
 | 混雑・通信エラー時の自動再試行 | `assets/config.js` の `RETRY_TOTAL_MS`（合計の打ち切り、既定 30 秒）・`RETRY_BASE_MS`・`RETRY_MAX_DELAY_MS` |
@@ -164,8 +166,8 @@ GAS のプロジェクトとスプレッドシートは、共有ドライブ「0
 上げる手順（**`APP_VERSION` と HTML の `?v=` は必ず同時に変える**）:
 
 1. `assets/config.js` の `APP_VERSION` を新しい値にする（例: `'v1.0.0'` → `'v1.0.1'`）。
-2. `index.html`・`survey.html`・`lottery.html` の CSS・JS の `?v=` を **すべて同じ値** にする（3ファイルで計13か所。一括置換でよい: `?v=v1.0.0` → `?v=v1.0.1`）。
-3. 変え忘れがないか確かめる: `node tools/check-version.mjs`（`OK: … 13 か所の ?v= がすべて同じです` と出ればよい。違えば NG と、合っていない箇所が出る）。
+2. `index.html`・`survey.html`・`lottery.html` の CSS・JS の `?v=` を **すべて同じ値** にする（3ファイルで計16か所。一括置換でよい: `?v=v1.0.0` → `?v=v1.0.1`）。
+3. 変え忘れがないか確かめる: `node tools/check-version.mjs`（`OK: … 16 か所の ?v= がすべて同じです` と出ればよい。違えば NG と、合っていない箇所が出る）。
 4. コミットして Pages に反映する（画面のバージョンとコミット ID をコミットの説明に書く）。
 5. 反映後、スマホで LP を開き、右上のバージョン番号が新しい値になっていること、「画面が新しくなりました。ページを再読み込みしてください。」が出ないことを確かめる（出た場合は、古い HTML がキャッシュに残っている。再読み込みで消えなければ、1〜2 の変え忘れを疑う）。
 

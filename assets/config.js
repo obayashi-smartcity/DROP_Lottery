@@ -11,6 +11,10 @@ window.LOTTERY_CONFIG = {
   PARAM_USER_ID: 'account_id',
   PARAM_POINTS: 'point',
 
+  // 画面全体の背景色。「#」＋16進6桁（例: '#CCE0C7'）。空・形式が違う（'#CCE' のような3桁、色名、# なしなど）ときは
+  // ベージュ（#F3E9E2。style.css の既定値）で表示する。カード・ボタン・入力欄など、ほかの部品の色は変わらない
+  BG_COLOR: '#CCE0C7',
+
   // 「スタンプラリーに戻る」ボタンの戻り先（空にするとボタンを表示しない）
   STAMP_RALLY_URL: 'https://drop.machiapps.com/collab-a/',
 
@@ -31,5 +35,5 @@ window.LOTTERY_CONFIG = {
 
   // 画面のバージョン（GAS のバージョンとは別に管理する。D-52）。画面の右上に小さく出す。
   // 上げるときは、index.html・survey.html・lottery.html の CSS・JS の ?v= もすべて同じ値に変える（README「画面のバージョン」）
-  APP_VERSION: 'v1.0.2',
+  APP_VERSION: 'v1.0.3',
 };
