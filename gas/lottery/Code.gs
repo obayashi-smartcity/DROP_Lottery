@@ -72,8 +72,8 @@ const MAX_LOCK_MIN = 360; // CacheService の保持期間の上限（6時間）
 const SETTINGS_CACHE_SEC = 30;
 const SETTINGS_CACHE_KEYS = { CONFIG: 'set:config:v1', TIERS: 'set:tiers:v1', PRIZES: 'set:prizes:v1' };
 const CACHE_VALUE_MAX = 100 * 1024; // CacheService の1件の上限（100KB）
-// Users・Winners を文字列書式にしておく行数（setupSheets）。appendRow で ID が数値・日付に化けないように
-const SHEET_FORMAT_ROWS = 5000;
+// tierId・prizeId は英字で始める（D-30）。appendRow は値の型をシートが推測するので、数字だけの ID は数値に化ける
+const SETTING_ID_RE = /^[A-Za-z]/;
 const PRIZE_KIND_COL = 8;                  // Prizes の「区分」列（H列）
 const CONSOLATION_MARK = 'はずれ';          // 区分がこの値の景品は、P01〜のどれにも当たらなかった人に渡す（はずれ景品）
 
@@ -170,7 +170,9 @@ function apiDraw_(req) {
     log_('draw', userId, 'BAD_TIER', `tierId=${tierId} points=${points} expected=${tier.id}`, ss);
     throw appError_('BAD_TIER', '選んだボタンとスタンプ数が合いません。最初からやり直してください');
   }
-  const prizes = getPrizes_(ss); // 景品の構成（手入力の列）。残り数はロックの中で Winners から数える
+  // 景品の構成（手入力の列）。残り数はロックの中で Winners から数える。
+  // prizeId が英字で始まらなければ新規の抽選を止める（D-30。抽選済みの人は上の drawRepeat_ で返るので止まらない）
+  const prizes = requirePrizeIds_(getPrizes_(ss));
   const wSheet = ss.getSheetByName(SHEET.WINNERS);
 
   // ---- ロックの中 ----
@@ -198,7 +200,7 @@ function apiDraw_(req) {
     if (prize) {
       ticketId = newTicketId_(winners);
       // appendRow 1回で追加する（D-28）。割り込まれない追加なので、人が末尾に足した行を上書きしない（#11）。
-      // ID の列が数値・日付に化けないよう、setupSheets で列を文字列書式にしてある
+      // 列の書式は引き継がれず値の型はシートが推測するが、入る値は文字列のまま入るので許容する（D-30）
       wSheet.appendRow([ // 引換コード（D列）は発行しない（D-25）
         ticketId, prize.id, prize.name, '', STATUS.UNREDEEMED, now, '', '', deviceId, userId,
       ]);
@@ -393,7 +395,7 @@ function apiRedeem_(req) {
 function apiStock_(req) {
   requireStaff_(req.token);
   const ss = ss_();
-  const prizes = getPrizes_(ss);
+  const prizes = requirePrizeIds_(getPrizes_(ss)); // prizeId の誤りをスタッフに知らせる（D-30）
   const tiers = getTiers_(ss);
   const winners = readRows_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.USER);
   const users = readRows_(ss.getSheetByName(SHEET.USERS), HEADERS.USERS.length);
@@ -503,15 +505,14 @@ function setupSheets() {
     users.setFrozenRows(1);
     console.log('Users シートを作成しました');
   }
-  // 抽選は appendRow で行を足す（D-28）。appendRow は値の型をシートが推測するので、ID の列は文字列書式にしておく。
-  // 書式は SHEET_FORMAT_ROWS 行まで先に用意する（足りなければ行を増やす）。空の行は getLastRow に数えられない
-  ensureRows_(users, SHEET_FORMAT_ROWS);
+  // 抽選は appendRow で行を足す（D-28）。appendRow で足した行には列の書式が引き継がれず、値の型はシートが推測する（v4.0-05 の負荷試験で確認）。
+  // 実際に入る値（UUID・W… の ticketId・英字で始まる tierId・16進の端末特徴）は推測されても文字列のままなので許容する（D-30）。
+  // 下の文字列書式は、手で入力・修正する行のためのもの（害がないので残す）
   ['A:A', 'E:E', 'G:G', 'H:H', 'I:I'].forEach((a1) => users.getRange(a1).setNumberFormat('@')); // userId・ticketId・tierId・deviceId・端末特徴
   users.getRange('B:B').setNumberFormat('yyyy/mm/dd hh:mm:ss');
 
   const winners = ss.getSheetByName(SHEET.WINNERS);
   winners.getRange(1, COL.WINNERS.USER).setValue('userId').setFontWeight('bold');
-  ensureRows_(winners, SHEET_FORMAT_ROWS);
   ['A:A', 'D:D', 'I:I', 'J:J'].forEach((a1) => winners.getRange(a1).setNumberFormat('@')); // ticketId・引換コード・deviceId・userId
 
   const prizes = ss.getSheetByName(SHEET.PRIZES);
@@ -520,12 +521,6 @@ function setupSheets() {
   prizes.getRange(1, PRIZE_KIND_COL).setValue('区分').setFontWeight('bold');
   fillPrizeFormulas_(ss);
   console.log('準備が完了しました');
-}
-
-/** シートの行数が n 行に満たなければ、末尾に空の行を足す */
-function ensureRows_(sheet, n) {
-  const max = sheet.getMaxRows();
-  if (max < n) sheet.insertRowsAfter(max, n - max);
 }
 
 /** 設定（Config・Tiers・Prizes）のキャッシュを消す。Config を変えてすぐ反映したいとき（緊急停止など）にエディタで実行する */
@@ -585,7 +580,8 @@ function withLock_(fn, opt) {
     const action = opt.action || 'lock';
     const actor = opt.actor || '';
     const waited = Date.now() - t0;
-    // D-27: 実行ログには必ず出す（エディタの「実行数」で件数と時刻を確認する）。Logs シートへの書き込みは試みるが、失敗してもよい
+    // D-27: 実行ログにも出す（匿名アクセスの実行ログは、Cloud プロジェクトに紐づけないと「実行数」画面で見られない。D-27 の補足）。
+    // Logs シートへの書き込みは試みるが、失敗してもよい（監視は Logs の BUSY 行を最低限の件数として見る）
     console.warn(`BUSY action=${action} actor=${actor} wait=${waited}ms`);
     try {
       log_(action, actor, 'BUSY', `wait=${waited}ms`, opt.ss);
@@ -662,7 +658,7 @@ function isOpen_(cfg, now) {
   return true;
 }
 
-/** Tiers シートのボタン一覧（上から順）。最大ポイント（スタンプ数）が空欄なら上限なし */
+/** Tiers シートのボタン一覧（上から順）。最大ポイント（スタンプ数）が空欄なら上限なし。ID が英字で始まらなければ NOT_CONFIGURED（D-30） */
 function getTiers_(ss) {
   const rows = cachedSettings_(SETTINGS_CACHE_KEYS.TIERS, () => {
     const sheet = ss.getSheetByName(SHEET.TIERS);
@@ -672,12 +668,24 @@ function getTiers_(ss) {
   return rows
     .filter((r) => String(r[0]).trim() !== '')
     .map((r) => ({
-      id: String(r[0]).trim(),
+      id: requireSettingId_(String(r[0]).trim(), 'Tiers', 'ボタンID（tierId）'),
       label: String(r[1] || r[0]),
       min: Number(r[2]) || 0,
       max: r[3] === '' || r[3] === null ? null : Number(r[3]),
       prob: Math.min(Math.max(Number(r[4]) || 0, 0), 100),
     }));
+}
+
+/**
+ * 設定シートの ID（tierId・prizeId）が英字で始まることを確かめる（D-30）。
+ * 数字だけの ID は appendRow で数値に化け、照合や在庫の数え方が狂うので、使われる前に止める。
+ * tierId は getTiers_ で常に確かめる。prizeId は抽選（apiDraw_）と在庫タブ（apiStock_）でだけ確かめる（requirePrizeIds_）
+ */
+function requireSettingId_(id, sheetName, label) {
+  if (!SETTING_ID_RE.test(id)) {
+    throw appError_('NOT_CONFIGURED', `${sheetName} シートの${label}「${id}」が英字で始まっていません（英字で始まる ID に直してください。スタッフにお知らせください）`);
+  }
+  return id;
 }
 
 /**
@@ -833,7 +841,11 @@ function readRows_(sheet, cols) {
   return last < 2 ? [] : sheet.getRange(2, 1, last - 1, cols).getValues();
 }
 
-/** Prizes シートの景品の構成（手入力の列）。キャッシュする（残り数は Winners から数えるのでキャッシュしない） */
+/**
+ * Prizes シートの景品の構成（手入力の列）。キャッシュする（残り数は Winners から数えるのでキャッシュしない）。
+ * prizeId の確認はここではしない。期間中に景品を足して ID を誤っても、当選済みの人の結果表示（buildResult_）と
+ * 引換（apiRedeemSelf_）は止めないため。抽選・在庫タブは requirePrizeIds_ を通す（D-30）
+ */
 function getPrizes_(ss) {
   const rows = cachedSettings_(SETTINGS_CACHE_KEYS.PRIZES, () => {
     const sheet = ss.getSheetByName(SHEET.PRIZES);
@@ -847,6 +859,12 @@ function getPrizes_(ss) {
       initial: Number(r[2]) || 0,
       consolation: String(r[PRIZE_KIND_COL - 1] || '').trim() === CONSOLATION_MARK,
     }));
+}
+
+/** 景品の prizeId がすべて英字で始まることを確かめる（D-30）。抽選（apiDraw_）と在庫タブ（apiStock_）で使う */
+function requirePrizeIds_(prizes) {
+  prizes.forEach((p) => requireSettingId_(p.id, 'Prizes', '景品ID（prizeId）'));
+  return prizes;
 }
 
 function countWinners_(ss, prizeId, status) {

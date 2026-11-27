@@ -100,18 +100,22 @@
     current = user;
     L.show('loading');
     try {
-      // 読み取りだけなので、混雑・通信エラーは自動で再試行する（D-26）
-      const [status, info] = await Promise.all([
-        L.callWithRetry('status', { userId: user.userId }, { retryOn: L.RETRY_READ }),
-        L.callWithRetry('info', { eventCode }, { retryOn: L.RETRY_READ }),
-      ]);
-      setEventName(info.eventName);
-      if (status.drawn) { // 抽選済みなら完了画面（結果）へ
+      // 読み取りだけなので、混雑・通信エラーは自動で再試行する（D-26）。status と info は同時に呼ぶ
+      const statusP = L.callWithRetry('status', { userId: user.userId }, { retryOn: L.RETRY_READ });
+      const infoP = L.callWithRetry('info', { eventCode }, { retryOn: L.RETRY_READ });
+      infoP.catch(() => {}); // 抽選済みで info を使わないときに、失敗が未処理のまま残らないように
+      const status = await statusP;
+      if (status.drawn) {
+        // 抽選済みなら、info を待たず（失敗していても）完了画面（結果）へ進む。
+        // 引換のときもリンクから入り直す運用（D-04）で、info の失敗（Tiers の ID の誤り・混雑など）のせいで
+        // 当選者が引換欄にたどり着けなくなるのを防ぐ（D-37）
         L.clearFlow();
         L.setFlow({ userId: user.userId, points: user.points, eventCode });
         L.goTo('lottery.html');
         return;
       }
+      const info = await infoP; // 抽選済みでない人は、今どおり info の失敗をエラー画面にする
+      setEventName(info.eventName);
       // スタンプ数の上限（Config の MAX_POINTS）。古い GAS で maxPoints が返らないときは確認しない
       if (typeof info.maxPoints === 'number' && user.points > info.maxPoints) { L.clearFlow(); showNoParam(); return; }
       if (!info.codeValid) { L.show('nocode'); return; }
