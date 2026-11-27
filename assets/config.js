@@ -29,6 +29,6 @@ window.LOTTERY_CONFIG = {
   // 抽選演出の最短時間（ミリ秒）
   DRAW_MIN_ANIMATION_MS: 3000,
 
-  // 在庫一覧の自動更新間隔（ミリ秒）
-  STOCK_POLL_MS: 30000,
+  // 画面の下の端（右寄せ）に小さく出すバージョン番号。画面を更新したら変える（空にすると表示しない）
+  APP_VERSION: 'v4.0',
 };

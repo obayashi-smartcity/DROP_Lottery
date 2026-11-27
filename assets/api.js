@@ -155,10 +155,6 @@
     }).format(new Date(iso));
   }
 
-  function fmtCode(code) {
-    return code && code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code || '';
-  }
-
   function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
   function $(sel) { return document.querySelector(sel); }
@@ -200,8 +196,14 @@
     else a.hidden = true;
   });
 
+  /** バージョン番号（.js-app-version）を出す。config.js の APP_VERSION が空なら出さない */
+  document.querySelectorAll('.js-app-version').forEach((p) => {
+    p.textContent = CFG.APP_VERSION || '';
+    p.hidden = !CFG.APP_VERSION;
+  });
+
   window.Lottery = {
-    call, callWithRetry, RETRY_READ, RETRY_BUSY_ONLY, ApiError, getDeviceId, getFingerprint, fmtDate, fmtCode, sleep, $, show, lsGet, lsSet,
+    call, callWithRetry, RETRY_READ, RETRY_BUSY_ONLY, ApiError, getDeviceId, getFingerprint, fmtDate, sleep, $, show, lsGet, lsSet,
     getFlow, setFlow, clearFlow, tierForPoints, tierRangeText, goTo,
   };
 })();

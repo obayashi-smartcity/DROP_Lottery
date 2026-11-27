@@ -64,7 +64,7 @@
     const active = L.tierForPoints(tiers, points);
     $('#sumPoints').textContent = points.toLocaleString('ja-JP');
     $('#tierLead').innerHTML = active
-      ? '押せるボタンで抽選に進めます。'
+      ? '獲得数に応じた抽選ボタンが有効になります'
       : 'スタンプが足りないため、<br>今回は抽選に参加できません。';
 
     const list = $('#tierList');

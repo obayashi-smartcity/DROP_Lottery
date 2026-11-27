@@ -4,6 +4,9 @@
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
   const QUESTIONS = window.SURVEY_QUESTIONS || [];
+  // 選択肢がこの文字数より長い設問は、スマホでも1列に並べる（短い選択肢の設問は2列。style.css）
+  const WIDE_OPTION_CHARS = 16;
+  const OTHER_MAX = 200; // 「その他」の自由記述の上限（文字）
 
   const flow = L.getFlow();
   // LP を通っていなければ LP へ戻す
@@ -20,6 +23,35 @@
     return e;
   }
 
+  /** 「その他」の自由記述を送る先の ID（設問とは別の列） */
+  function otherId(q) { return `${q.id}_other`; }
+
+  function isExclusive(q, value) { return (q.exclusiveOptions || []).indexOf(value) !== -1; }
+
+  /** 選択肢の input の一覧 */
+  function optionInputs(name) {
+    return Array.from($('#surveyForm').querySelectorAll(`input[name="${name}"]`));
+  }
+
+  /** 「その他」を選んでいるときだけ自由記述の入力欄を出す（外したら隠す。内容は collect で送らない） */
+  function syncOther(q, name) {
+    if (!q.otherOption) return;
+    const chosen = optionInputs(name).some((i) => i.checked && i.value === q.otherOption);
+    const box = $('#surveyForm').querySelector(`input[name="${name}_other"]`);
+    box.hidden = !chosen;
+  }
+
+  /** 選んだときの処理: 同時に選べない選択肢（exclusiveOptions）を外し、「その他」の入力欄を出し入れする */
+  function onOptionChange(q, name, target) {
+    if (q.type === 'checkbox' && target.checked) {
+      const exclusive = isExclusive(q, target.value);
+      optionInputs(name).forEach((i) => {
+        if (i !== target && i.checked && (exclusive || isExclusive(q, i.value))) i.checked = false;
+      });
+    }
+    syncOther(q, name);
+  }
+
   function renderQuestions() {
     const box = $('#questions');
     QUESTIONS.forEach((q, qi) => {
@@ -29,15 +61,25 @@
       fs.appendChild(lg);
       const name = `q_${qi}`;
       if (q.type === 'radio' || q.type === 'checkbox') {
-        const opts = el('div', { class: 'q-options' });
+        const wide = (q.options || []).some((o) => o.length > WIDE_OPTION_CHARS);
+        const opts = el('div', { class: wide ? 'q-options q-options-wide' : 'q-options' });
         (q.options || []).forEach((o) => {
           const lab = el('label', { class: 'opt' });
           const inp = el('input', { type: q.type, name: name, value: o });
+          inp.addEventListener('change', () => onOptionChange(q, name, inp));
           lab.appendChild(inp);
           lab.appendChild(el('span', {}, o));
           opts.appendChild(lab);
         });
         fs.appendChild(opts);
+        if (q.otherOption) {
+          const other = el('input', {
+            type: 'text', name: `${name}_other`, class: 'q-input q-other', maxlength: String(OTHER_MAX),
+            'aria-label': `「${q.otherOption}」の内容`, placeholder: `「${q.otherOption}」の内容（${OTHER_MAX}文字まで）`,
+          });
+          other.hidden = true;
+          fs.appendChild(other);
+        }
       } else if (q.type === 'select') {
         const sel = el('select', { name: name, class: 'q-input' });
         sel.appendChild(el('option', { value: '' }, '選択してください'));
@@ -53,7 +95,11 @@
     });
   }
 
-  /** 回答を集める。未回答の必須設問があれば null */
+  /**
+   * 回答を集める。未回答の必須設問（「その他」を選んで内容が空の場合を含む）があれば null。
+   * 「その他」の内容は <id>_other に入れる。選んでいなければ空欄で送る（入力していた内容は送らない。
+   * 空欄でも送るのは、Responses シートの列が設問の順に並ぶようにするため）
+   */
   function collect() {
     const form = $('#surveyForm');
     const answers = {};
@@ -67,15 +113,24 @@
         const c = form.querySelector(`input[name="${name}"]:checked`);
         v = c ? c.value : '';
       } else {
-        v = (form.elements[name].value || '').trim();
+        v = (form.querySelector(`[name="${name}"]`).value || '').trim();
       }
       const empty = Array.isArray(v) ? v.length === 0 : v === '';
       const fs = form.querySelector(`fieldset[data-id="${q.id}"]`);
-      const ng = q.required && empty;
+      let msg = q.required && empty ? '回答してください' : '';
+      let otherText = '';
+      if (q.otherOption) {
+        const chosen = Array.isArray(v) ? v.indexOf(q.otherOption) !== -1 : v === q.otherOption;
+        const box = form.querySelector(`input[name="${name}_other"]`);
+        otherText = chosen ? (box.value || '').trim().slice(0, OTHER_MAX) : '';
+        if (!msg && chosen && !otherText) msg = `「${q.otherOption}」の内容を入力してください`;
+      }
+      const ng = !!msg;
       fs.classList.toggle('ng', ng);
-      fs.querySelector('.q-error').textContent = ng ? '回答してください' : '';
+      fs.querySelector('.q-error').textContent = msg;
       if (ng && !firstNg) firstNg = fs;
       answers[q.id] = v;
+      if (q.otherOption) answers[otherId(q)] = otherText;
     });
     if (firstNg) {
       firstNg.scrollIntoView({ behavior: 'smooth', block: 'center' });

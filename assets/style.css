@@ -110,7 +110,6 @@ button { font-family: inherit; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-primary { background: var(--ink); border-color: var(--ink); color: #fff; }
 .btn-xl { width: 100%; min-height: 60px; font-size: 18px; font-weight: 700; margin: 8px 0; }
-.btn-small { min-height: 36px; padding: 6px 14px; font-size: 13px; }
 
 /* 抽選ボタン（黒のピル＋ブラウンの丸矢印） */
 .cta {
@@ -359,19 +358,6 @@ button { font-family: inherit; }
 
 .prize { margin: 6px 0 18px; font-size: 26px; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; }
 
-.qr {
-  width: min(240px, 66vw);
-  margin: 0 auto 14px;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid var(--line-soft);
-  border-radius: 20px;
-}
-.qr svg { display: block; width: 100%; height: auto; }
-
-.code-label { margin: 4px 0 0; font-size: 12px; color: var(--muted); letter-spacing: .1em; }
-.code { margin: 0 0 10px; font-size: 34px; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
-
 .confetti {
   position: fixed;
   inset: 0;
@@ -386,11 +372,7 @@ button { font-family: inherit; }
   .result-card, .result-en, .stage-flash { animation: none !important; transition: none !important; }
 }
 
-/* ---------- スタッフ画面 ---------- */
-
-.staff .wrap { max-width: 560px; }
-.staff .brand-title { font-size: 22px; }
-.staff-info { margin: 4px 0 0; font-size: 13px; color: var(--brown); }
+/* ---------- 入力欄（結果画面の引換パスワード） ---------- */
 
 .form { display: grid; gap: 16px; }
 .form label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; color: var(--brown); }
@@ -404,78 +386,6 @@ button { font-family: inherit; }
   color: var(--ink);
 }
 .form input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
-.form.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-top: 18px; }
-.form.inline input { width: 100%; min-width: 0; }
-
-.row { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
-.row.between { justify-content: space-between; margin-top: 0; margin-bottom: 14px; }
-.row.center { justify-content: center; }
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin: 8px 0 16px;
-  padding: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--brown);
-}
-.tab {
-  border: 0;
-  background: transparent;
-  color: #fff;
-  border-radius: var(--radius-pill);
-  padding: 9px 18px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.tab.active { background: #fff; color: var(--ink); font-weight: 700; }
-.tab-right { margin-left: auto; opacity: .75; }
-
-.reader { width: 100%; min-height: 8px; border-radius: 20px; overflow: hidden; }
-.reader video { border-radius: 20px; }
-
-.table-wrap { overflow-x: auto; }
-.table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th, .table td { padding: 10px 6px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
-.table th:first-child, .table td:first-child { text-align: left; white-space: normal; }
-.table th { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: .06em; }
-.table tr.zero td { color: var(--ng); }
-
-.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 18px 0 0; }
-.totals div { background: var(--bg); border-radius: 18px; padding: 10px 14px; }
-.totals dt { font-size: 11px; color: var(--brown); }
-.totals dd { margin: 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-.warn { margin-top: 14px; padding: 12px 16px; border-radius: 18px; background: #FBE7D9; font-size: 13px; }
-
-.badge {
-  display: inline-block;
-  margin: 0 0 8px;
-  padding: 6px 18px;
-  border-radius: var(--radius-pill);
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--brown);
-}
-.badge-win { background: var(--c-orange); }
-.badge-ok { background: var(--ok); }
-.badge-ng { background: var(--ng); }
-
-.sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(95, 86, 77, .55);
-}
-.sheet[hidden] { display: none; }
-.sheet-body { width: 100%; max-width: 520px; animation: pop .3s ease both; }
-.sheet .prize { margin-bottom: 8px; }
 
 /* ===== LP・アンケート ===== */
 .summary {
@@ -626,7 +536,6 @@ body { letter-spacing: .03em; }
   letter-spacing: .12em;
 }
 .brand-title { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
-.staff .brand-title { font-size: 20px; }
 
 /* ---------- 文字 ---------- */
 .lead { font-size: 18px; font-weight: 500; line-height: 1.8; letter-spacing: .04em; }
@@ -871,4 +780,26 @@ a.btn { text-decoration: none; }
   .brand { margin-bottom: 6px; }
   .brand-logo { width: 64px; }
   .brand-title { font-size: 18px; }
+}
+
+/* =====================================================================
+   v4.0-07：画面の調整（見出し・結果の文言・アンケートの「その他」・バージョン番号）
+   ===================================================================== */
+/* 結果の見出し（当選おめでとうございます！／残念！はずれ）を1行に収める */
+.result-msg { font-size: 30px; letter-spacing: .02em; }
+/* アンケート：「その他」の自由記述の入力欄（選んだときだけ出す） */
+.q-other { margin-top: 8px; }
+.q-other[hidden] { display: none; }
+/* バージョン番号（下の端の右寄せ。ボタンや入力欄に重ならないよう、流れの最後に置く） */
+.app-version { margin: 18px 0 0; text-align: right; font-size: 11px; line-height: 1.4; letter-spacing: .04em; color: var(--muted); }
+.app-version[hidden] { display: none; }
+/* 引換済み：「この画面をスタッフに見せて…」を消したので、「引換済み」と日時の間を詰める */
+#redeemedBox .pill-done { display: block; width: fit-content; margin: 2px auto 0; }
+#redeemedText { margin: 10px 0 0; }
+
+@media (max-width: 430px) {
+  .result-msg { font-size: min(24px, 6.2vw); }
+  /* 選択肢が長い設問は1列にする（survey.js が q-options-wide を付ける） */
+  .q-options-wide { grid-template-columns: 1fr; }
+  .app-version { margin-top: 12px; font-size: 10px; }
 }

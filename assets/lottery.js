@@ -8,6 +8,15 @@
   const stage = $('#stage');
   const coreText = $('#coreText');
 
+  // 結果画面の文言（v4.0-07）。景品名は出さず、当選は「抽選特典」、はずれ景品は「参加賞」として出す
+  const TEXT = {
+    winHead: '当選おめでとうございます！',
+    consolationHead: '残念！はずれ', // はずれ景品の人（はずれ景品もない「はずれ」の画面も同じ見出し。lottery.html）
+    winCard: '抽選特典',
+    consolationCard: '参加賞',
+    redeemedSuffix: '（受け取り済）',
+  };
+
   const flow = L.getFlow();
   if (!flow.userId) { L.goTo('index.html'); return; } // LP を通っていない
 
@@ -131,10 +140,10 @@
       return;
     }
     setStage(consolation ? 'lose' : 'win', consolation ? 'LOSE' : 'WIN');
-    $('#resultHead').textContent = consolation ? 'はずれ' : '当選';
-    $('#resultHead').classList.toggle('result-en-lose', consolation);
-    $('#prizeName').textContent = res.prizeName;
     const redeemed = res.redeemStatus === '引換済み';
+    $('#resultHead').textContent = consolation ? TEXT.consolationHead : TEXT.winHead;
+    $('#resultHead').classList.toggle('result-en-lose', consolation);
+    $('#cardTitle').textContent = (consolation ? TEXT.consolationCard : TEXT.winCard) + (redeemed ? TEXT.redeemedSuffix : '');
     $('#redeemBox').hidden = redeemed;
     $('#redeemedBox').hidden = !redeemed;
     if (redeemed) {
@@ -265,7 +274,7 @@
     return String(v == null ? '' : v).normalize('NFKC').trim();
   }
 
-  /** 当選者がスタッフから聞いたパスワードを入れて引き換える */
+  /** 当選者がスタッフから聞いたパスワードを入れて受け取る（引換） */
   let redeeming = false;
   async function redeem(e) {
     e.preventDefault();
@@ -298,7 +307,7 @@
           }
         } catch (e) { /* 確認できなければ下のエラー表示 */ }
       }
-      $('#redeemError').textContent = err.message || '引き換えできませんでした'; // 入力欄はそのまま残す
+      $('#redeemError').textContent = err.message || '受け取りできませんでした'; // 入力欄はそのまま残す
     } finally {
       redeeming = false;
       $('#redeemBtn').disabled = false;

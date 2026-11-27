@@ -7,11 +7,11 @@
  * 流れ: LP（スタンプ数でボタンを選ぶ）→ アンケート（別GAS）→ 抽選 → 結果
  *  - 抽選はユーザーIDごとに1回。
  *  - ボタン（Tiers シート）ごとの当選確率で当落を決め、当たりなら Prizes の残りから景品を割り当てる。
- *    景品の残りがなければはずれ。
+ *    通常の景品に当たらなかった人（はずれ・景品切れ）には、はずれ景品（区分「はずれ」）が残っていれば渡す。
+ *  - 引換は、当選者が結果画面で引換パスワード（Config の REDEEM_PASSWORD）を入力して行う（スタッフ用の画面はない。D-32）。
  *
  * 初回準備（スクリプトエディタで関数を選んで実行）
- *   1. setupSecrets() … 署名用の秘密鍵とスタッフPINを作成（PINは実行ログに表示）
- *   2. setupSheets()  … Tiers・Users シートと Prizes の集計式を用意（何度実行してもよい）
+ *   setupSheets() … Config の行・Tiers・Users シートと Prizes の集計式を用意（何度実行してもよい）
  */
 
 const SPREADSHEET_ID = '1_mwPTuAW4RHXgUNELKWcoMsGJtJsSJPBjzV0qWzsUHA';
@@ -51,12 +51,7 @@ const SAMPLE_TIERS = [
   ['B4', 'ボタン4', 50, '', 50, '50スタンプ以上（最大ポイントが空欄なら上限なし）'],
 ];
 
-const TOKEN_TTL_SEC = 6 * 60 * 60; // CacheService の上限が6時間
 const LOCK_WAIT_MS = 10000;
-const PIN_MAX_FAIL = 5;
-const PIN_LOCK_SEC = 15 * 60;
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 見間違えやすい I O 0 1 を除外
-const CODE_LENGTH = 6;
 // ユーザーID（スタンプラリーの account_id）は UUID。大文字・小文字を区別せずに受け付け、小文字にそろえて使う
 const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // スタンプ数の上限は Config シートの MAX_POINTS。行がない・空欄・不正な値のときはこの値を使う
@@ -76,6 +71,11 @@ const CACHE_VALUE_MAX = 100 * 1024; // CacheService の1件の上限（100KB）
 const SETTING_ID_RE = /^[A-Za-z]/;
 const PRIZE_KIND_COL = 8;                  // Prizes の「区分」列（H列）
 const CONSOLATION_MARK = 'はずれ';          // 区分がこの値の景品は、P01〜のどれにも当たらなかった人に渡す（はずれ景品）
+// D-42: Logs に残すエラー（不正なアクセスやトラブルの調査用）。BAD_REQUEST・UNKNOWN_ACTION は doPost の入口で、
+// NOT_CONFIGURED・BAD_USER は各処理から投げられたものを doPost で書く。どれもロックの外で書く
+const LOGGED_ERROR_CODES = ['NOT_CONFIGURED', 'BAD_USER'];
+const LOG_CLIP_SHORT = 64;  // ログに残す、受け取った値（userId・action など）の長さの上限
+const LOG_CLIP_BODY = 200;  // ログに残す、受け取った本文・エラーの文言の長さの上限
 
 /* ============================== 入口 ============================== */
 
@@ -84,28 +84,36 @@ function doGet() {
 }
 
 function doPost(e) {
-  let req;
+  const body = String((e && e.postData && e.postData.contents) || '{}');
+  let req = null;
   try {
-    req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    req = JSON.parse(body);
   } catch (err) {
+    req = null;
+  }
+  if (!req || typeof req !== 'object' || Array.isArray(req)) { // 画面は JSON のオブジェクトを送る
+    logRejected_('request', '', 'BAD_REQUEST', `len=${body.length} body=${clip_(body, LOG_CLIP_BODY)}`); // D-42
     return json_(fail_('BAD_REQUEST', 'リクエストの形式が正しくありません'));
   }
   const handlers = {
     info: apiInfo_,
     draw: apiDraw_,
     status: apiStatus_,
-    staffLogin: apiStaffLogin_,
-    verify: apiVerify_,
-    redeem: apiRedeem_,
     redeemSelf: apiRedeemSelf_,
-    stock: apiStock_,
   };
-  const handler = handlers[req.action];
-  if (!handler) return json_(fail_('UNKNOWN_ACTION', '不明な操作です'));
+  const action = typeof req.action === 'string' ? req.action : '';
+  // hasOwnProperty で確かめる（"constructor" などの名前で Object の関数を呼ばせない）
+  if (!action || !Object.prototype.hasOwnProperty.call(handlers, action)) {
+    logRejected_('request', '', 'UNKNOWN_ACTION', `action=${clip_(req.action, LOG_CLIP_SHORT)}`); // D-42
+    return json_(fail_('UNKNOWN_ACTION', '不明な操作です'));
+  }
   try {
-    return json_(handler(req));
+    return json_(handlers[action](req));
   } catch (err) {
-    if (err && err.appCode) return json_(fail_(err.appCode, err.message, err.extra));
+    if (err && err.appCode) {
+      if (LOGGED_ERROR_CODES.indexOf(err.appCode) !== -1) logAppError_(action, req, err); // D-42
+      return json_(fail_(err.appCode, err.message, err.extra));
+    }
     console.error(err);
     try { log_('error', req.action, 'NG', String((err && err.stack) || err)); } catch (ignore) {}
     return json_(fail_('SERVER_ERROR', 'サーバーでエラーが発生しました'));
@@ -221,7 +229,7 @@ function apiDraw_(req) {
   const result = out.consolation ? 'consolation' : (out.prize ? 'win' : 'lose');
   log_('draw', userId, result, [tier.id, points + 'pt', out.ticketId].concat(out.details, [timingText_(timing)]).filter(String).join(' '), ss);
   const w = out.prize ? {
-    ticketId: out.ticketId, prizeId: out.prize.id, prizeName: out.prize.name, code: '',
+    ticketId: out.ticketId, prizeId: out.prize.id, prizeName: out.prize.name,
     status: STATUS.UNREDEEMED, redeemedAt: '', consolation: out.consolation,
   } : null;
   return Object.assign(buildResult_(ss, cfg, out.ticketId, w), { alreadyDrawn: false });
@@ -272,7 +280,7 @@ function apiRedeemSelf_(req) {
   const fails = Number(cache.get(failKey) || 0);
   if (fails >= cfg.REDEEM_MAX_FAIL) {
     log_('redeemSelf', userId, 'LOCKED', `fails=${fails}`, ss);
-    throw appError_('LOCKED', `パスワードの入力ミスが続いたため、${cfg.REDEEM_LOCK_MIN}分間は引き換えできません`);
+    throw appError_('LOCKED', `パスワードの入力ミスが続いたため、${cfg.REDEEM_LOCK_MIN}分間は受け取りできません`);
   }
 
   const user = readUser_(ss.getSheetByName(SHEET.USERS), userId);
@@ -332,131 +340,7 @@ function apiRedeemSelf_(req) {
   return Object.assign(buildResult_(ss, cfg, ticketId, out.w), { alreadyRedeemed: out.already });
 }
 
-/* ============================== スタッフ向け ============================== */
-
-function apiStaffLogin_(req) {
-  const name = String(req.staffName || '').trim().slice(0, 20) || 'スタッフ'; // 名前は任意
-  const pin = String(req.pin || '');
-  const expected = PropertiesService.getScriptProperties().getProperty('STAFF_PIN');
-  if (!expected) throw appError_('NOT_CONFIGURED', 'スタッフPINが未設定です（setupSecrets を実行してください）');
-
-  const cache = CacheService.getScriptCache();
-  const fails = Number(cache.get('pinfail') || 0);
-  if (fails >= PIN_MAX_FAIL) throw appError_('LOCKED', 'PINの入力ミスが続いたため、15分間ログインできません');
-
-  if (!safeEqual_(pin, expected)) {
-    cache.put('pinfail', String(fails + 1), PIN_LOCK_SEC);
-    log_('staffLogin', name, 'NG', `失敗 ${fails + 1}回目`);
-    throw appError_('BAD_PIN', `PINが違います（あと${PIN_MAX_FAIL - fails - 1}回）`);
-  }
-  cache.remove('pinfail');
-  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
-  cache.put('tok:' + token, name, TOKEN_TTL_SEC);
-  log_('staffLogin', name, 'OK', '');
-  return { ok: true, token: token, staffName: name, expiresInSec: TOKEN_TTL_SEC };
-}
-
-/** QR または引換コードから当選内容を確認（状態は変えない） */
-function apiVerify_(req) {
-  const staff = requireStaff_(req.token);
-  const ss = ss_();
-  const w = findWinner_(ss, req);
-  log_('verify', staff, w.status, w.ticketId);
-  return Object.assign({ ok: true }, winnerView_(w, getConfig_()));
-}
-
-/** 引き渡し完了。未引換 → 引換済み を1回だけ行う */
-function apiRedeem_(req) {
-  const staff = requireStaff_(req.token);
-  const cfg = getConfig_();
-  return withLock_(() => {
-    const ss = ss_();
-    const w = findWinner_(ss, req); // ロック内で最新の状態を読み直す
-    const view = winnerView_(w, cfg);
-    if (w.status === STATUS.REDEEMED) throw appError_('ALREADY_REDEEMED', 'この当選はすでに引換済みです', view);
-    if (w.status === STATUS.VOID) throw appError_('VOID', 'この当選は無効になっています', view);
-    if (view.expired) throw appError_('EXPIRED', '引換期限を過ぎています', view);
-
-    const prize = getPrizes_(ss).find((p) => p.id === w.prizeId);
-    const redeemed = countWinners_(ss, w.prizeId, STATUS.REDEEMED);
-    if (!prize || prize.initial - redeemed <= 0) throw appError_('OUT_OF_STOCK', 'この景品の在庫がありません', view);
-
-    const now = new Date();
-    const sheet = ss.getSheetByName(SHEET.WINNERS);
-    sheet.getRange(w.row, COL.WINNERS.STATUS).setValue(STATUS.REDEEMED);
-    sheet.getRange(w.row, COL.WINNERS.REDEEMED_AT, 1, 2).setValues([[now, staff]]);
-    SpreadsheetApp.flush();
-    log_('redeem', staff, 'OK', w.ticketId);
-    return Object.assign({ ok: true }, view, { status: STATUS.REDEEMED, redeemedAt: iso_(now), redeemedBy: staff });
-  });
-}
-
-/** 在庫一覧・ボタン別の集計・不正の兆候 */
-function apiStock_(req) {
-  requireStaff_(req.token);
-  const ss = ss_();
-  const prizes = requirePrizeIds_(getPrizes_(ss)); // prizeId の誤りをスタッフに知らせる（D-30）
-  const tiers = getTiers_(ss);
-  const winners = readRows_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.USER);
-  const users = readRows_(ss.getSheetByName(SHEET.USERS), HEADERS.USERS.length);
-
-  const items = prizes.map((p) => {
-    const won = winners.filter((r) => r[COL.WINNERS.PRIZE - 1] === p.id).length;
-    const redeemed = winners.filter((r) => r[COL.WINNERS.PRIZE - 1] === p.id && r[COL.WINNERS.STATUS - 1] === STATUS.REDEEMED).length;
-    return { prizeId: p.id, name: p.name, consolation: p.consolation, initial: p.initial, won: won, redeemed: redeemed, onHand: p.initial - redeemed, remaining: Math.max(p.initial - won, 0) };
-  });
-
-  const tierStats = tiers.map((t) => {
-    const rows = users.filter((r) => String(r[COL.USERS.TIER - 1]) === t.id);
-    return { id: t.id, label: t.label, prob: t.prob, draws: rows.length, wins: rows.filter((r) => r[COL.USERS.RESULT - 1] === '当たり').length };
-  });
-
-  const fpCount = {};
-  users.forEach((r) => {
-    const fp = String(r[COL.USERS.FP - 1] || '');
-    if (fp) fpCount[fp] = (fpCount[fp] || 0) + 1;
-  });
-  const fpDuplicates = Object.keys(fpCount)
-    .filter((k) => fpCount[k] > 1)
-    .map((k) => ({ fp: k.slice(0, 8), devices: fpCount[k] }))
-    .sort((a, b) => b.devices - a.devices);
-
-  return {
-    ok: true,
-    items: items,
-    tiers: tierStats,
-    totals: {
-      draws: users.length,
-      wins: users.filter((r) => r[COL.USERS.RESULT - 1] === '当たり').length,
-      consolations: items.filter((i) => i.consolation).reduce((s, i) => s + i.won, 0),
-      redeemed: winners.filter((r) => r[COL.WINNERS.STATUS - 1] === STATUS.REDEEMED).length,
-      prizesLeft: items.filter((i) => !i.consolation).reduce((s, i) => s + i.remaining, 0),
-      consolationLeft: items.filter((i) => i.consolation).reduce((s, i) => s + i.remaining, 0),
-      repeatRequests: users.filter((r) => Number(r[COL.USERS.COUNT - 1]) > 1).length,
-    },
-    fpDuplicates: fpDuplicates,
-    updatedAt: iso_(new Date()),
-  };
-}
-
 /* ============================== 管理者向け（エディタから実行） ============================== */
-
-/** 署名用の秘密鍵とスタッフPINを作成する。既にあれば変更しない */
-function setupSecrets() {
-  const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('HMAC_SECRET')) {
-    props.setProperty('HMAC_SECRET', (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''));
-    console.log('HMAC_SECRET を作成しました');
-  }
-  if (!props.getProperty('STAFF_PIN')) {
-    let pin = '';
-    for (let i = 0; i < 6; i++) pin += String(randomInt_(10));
-    props.setProperty('STAFF_PIN', pin);
-    console.log('STAFF_PIN を作成しました: ' + pin + '（プロジェクトの設定 > スクリプト プロパティで変更できます）');
-  } else {
-    console.log('STAFF_PIN は設定済みです（プロジェクトの設定 > スクリプト プロパティで確認・変更）');
-  }
-}
 
 /**
  * Tiers・Users シートを用意し、Winners に userId 列、Prizes に集計式を入れる。
@@ -513,7 +397,8 @@ function setupSheets() {
 
   const winners = ss.getSheetByName(SHEET.WINNERS);
   winners.getRange(1, COL.WINNERS.USER).setValue('userId').setFontWeight('bold');
-  ['A:A', 'D:D', 'I:I', 'J:J'].forEach((a1) => winners.getRange(a1).setNumberFormat('@')); // ticketId・引換コード・deviceId・userId
+  // ticketId・引換コード（D-25 から空欄。列の位置を変えないために列は残す。D-43）・deviceId・userId
+  ['A:A', 'D:D', 'I:I', 'J:J'].forEach((a1) => winners.getRange(a1).setNumberFormat('@'));
 
   const prizes = ss.getSheetByName(SHEET.PRIZES);
   prizes.getRange(1, 7).setValue('当選可能残');
@@ -679,7 +564,7 @@ function getTiers_(ss) {
 /**
  * 設定シートの ID（tierId・prizeId）が英字で始まることを確かめる（D-30）。
  * 数字だけの ID は appendRow で数値に化け、照合や在庫の数え方が狂うので、使われる前に止める。
- * tierId は getTiers_ で常に確かめる。prizeId は抽選（apiDraw_）と在庫タブ（apiStock_）でだけ確かめる（requirePrizeIds_）
+ * tierId は getTiers_ で常に確かめる。prizeId は抽選（apiDraw_）でだけ確かめる（requirePrizeIds_）
  */
 function requireSettingId_(id, sheetName, label) {
   if (!SETTING_ID_RE.test(id)) {
@@ -807,13 +692,6 @@ function optionalDeviceId_(v) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id.toLowerCase() : '';
 }
 
-function requireStaff_(token) {
-  const t = String(token || '');
-  const name = t ? CacheService.getScriptCache().get('tok:' + t) : null;
-  if (!name) throw appError_('AUTH', 'ログインの有効期限が切れました。ログインし直してください');
-  return name;
-}
-
 /** 列 col が value と完全一致する最初の行番号（なければ 0） */
 function findRow_(sheet, col, value) {
   const last = sheet.getLastRow();
@@ -844,7 +722,7 @@ function readRows_(sheet, cols) {
 /**
  * Prizes シートの景品の構成（手入力の列）。キャッシュする（残り数は Winners から数えるのでキャッシュしない）。
  * prizeId の確認はここではしない。期間中に景品を足して ID を誤っても、当選済みの人の結果表示（buildResult_）と
- * 引換（apiRedeemSelf_）は止めないため。抽選・在庫タブは requirePrizeIds_ を通す（D-30）
+ * 引換（apiRedeemSelf_）は止めないため。抽選は requirePrizeIds_ を通す（D-30）
  */
 function getPrizes_(ss) {
   const rows = cachedSettings_(SETTINGS_CACHE_KEYS.PRIZES, () => {
@@ -861,15 +739,10 @@ function getPrizes_(ss) {
     }));
 }
 
-/** 景品の prizeId がすべて英字で始まることを確かめる（D-30）。抽選（apiDraw_）と在庫タブ（apiStock_）で使う */
+/** 景品の prizeId がすべて英字で始まることを確かめる（D-30）。抽選（apiDraw_）で使う */
 function requirePrizeIds_(prizes) {
   prizes.forEach((p) => requireSettingId_(p.id, 'Prizes', '景品ID（prizeId）'));
   return prizes;
-}
-
-function countWinners_(ss, prizeId, status) {
-  return readRows_(ss.getSheetByName(SHEET.WINNERS), COL.WINNERS.STATUS)
-    .filter((r) => r[COL.WINNERS.PRIZE - 1] === prizeId && r[COL.WINNERS.STATUS - 1] === status).length;
 }
 
 function fillPrizeFormulas_(ss) {
@@ -888,29 +761,7 @@ function fillPrizeFormulas_(ss) {
   sheet.getRange(2, 4, formulas.length, 4).setFormulas(formulas);
 }
 
-/** 当選を ticketId（QR）または引換コードで探す */
-function findWinner_(ss, req) {
-  const sheet = ss.getSheetByName(SHEET.WINNERS);
-  let row = 0;
-  if (req.qr) {
-    const qr = String(req.qr).trim();
-    const dot = qr.lastIndexOf('.');
-    const ticketId = dot > 0 ? qr.slice(0, dot) : '';
-    const sig = dot > 0 ? qr.slice(dot + 1) : '';
-    if (!ticketId || !safeEqual_(sig, sign_(ticketId))) throw appError_('BAD_SIGNATURE', 'このQRコードは無効です（署名が一致しません）');
-    row = findRow_(sheet, COL.WINNERS.TICKET, ticketId);
-  } else if (req.code) {
-    const code = String(req.code).toUpperCase().replace(/[\s-]/g, '');
-    if (!new RegExp(`^[${CODE_CHARS}]{${CODE_LENGTH}}$`).test(code)) throw appError_('BAD_CODE', '引換コードの形式が正しくありません');
-    row = findRow_(sheet, COL.WINNERS.CODE, code);
-  } else {
-    throw appError_('BAD_REQUEST', 'QRコードか引換コードを指定してください');
-  }
-  if (!row) throw appError_('NOT_FOUND', '該当する当選が見つかりません');
-  return readWinner_(sheet, row);
-}
-
-/** ticketId で当選を探す（署名の確認はしない。参加者向けの内部処理用）。なければ null */
+/** ticketId で当選を探す。なければ null */
 function findWinnerByTicket_(sheet, ticketId) {
   const row = findRow_(sheet, COL.WINNERS.TICKET, ticketId);
   return row ? readWinner_(sheet, row) : null;
@@ -924,7 +775,6 @@ function readWinner_(sheet, row) {
     ticketId: String(v[COL.WINNERS.TICKET - 1]),
     prizeId: String(v[COL.WINNERS.PRIZE - 1]),
     prizeName: String(v[COL.WINNERS.NAME - 1]),
-    code: String(v[COL.WINNERS.CODE - 1]),
     status: String(v[COL.WINNERS.STATUS - 1]),
     wonAt: v[COL.WINNERS.WON_AT - 1],
     redeemedAt: v[COL.WINNERS.REDEEMED_AT - 1],
@@ -965,30 +815,10 @@ function buildResult_(ss, cfg, ticketId, w) {
     result: consolation ? 'lose' : 'win', // はずれ景品は「はずれ」扱い（consolation: true で景品と引換情報を付ける）
     consolation: consolation,
     prizeName: w.prizeName,
-    ticketId: w.ticketId,
-    qr: w.ticketId + '.' + sign_(w.ticketId),
-    redeemCode: w.code || '',
+    ticketId: w.ticketId, // qr・redeemCode は返さない（D-43。署名と HMAC_SECRET は使わない）
     redeemStatus: w.status,
     redeemedAt: iso_(w.redeemedAt),
   });
-}
-
-/** 旧方式の引換コード。v4.0-04 から発行しない（D-25）。旧タブ・既存データの互換のために残す */
-function newRedeemCode_(ss) {
-  const sheet = ss.getSheetByName(SHEET.WINNERS);
-  for (let attempt = 0; attempt < 20; attempt++) {
-    let code = '';
-    for (let i = 0; i < CODE_LENGTH; i++) code += CODE_CHARS.charAt(randomInt_(CODE_CHARS.length));
-    if (!findRow_(sheet, COL.WINNERS.CODE, code)) return code;
-  }
-  throw new Error('引換コードを作れませんでした');
-}
-
-function sign_(ticketId) {
-  const secret = PropertiesService.getScriptProperties().getProperty('HMAC_SECRET');
-  if (!secret) throw appError_('NOT_CONFIGURED', '署名用の秘密鍵が未設定です（setupSecrets を実行してください）');
-  const bytes = Utilities.computeHmacSha256Signature(String(ticketId), secret);
-  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '').slice(0, 22);
 }
 
 function safeEqual_(a, b) {
@@ -1013,4 +843,40 @@ function randomInt_(n) {
 /** Logs に1行追加する。ss を渡すと開き直さずに使う */
 function log_(action, actor, result, detail, ss) {
   (ss || ss_()).getSheetByName(SHEET.LOGS).appendRow([new Date(), action, actor, result, detail]);
+}
+
+/** Logs に1行追加する。書けなくても例外にしない（D-42 のエラーの記録用。書けなくても応答は返す） */
+function logRejected_(action, actor, result, detail) {
+  try {
+    log_(action, actor, result, detail);
+  } catch (e) {
+    console.warn(`Logs への書き込みに失敗 action=${action} result=${result}: ${(e && e.message) || e}`);
+  }
+}
+
+/**
+ * D-42: NOT_CONFIGURED（設定のエラー）・BAD_USER（UUID でない ID）を Logs に残す。doPost から呼ぶので、ロックの外。
+ * BAD_USER は受け取った値（draw なら deviceId・fp も）を、NOT_CONFIGURED はエラーの文言を詳細に書く
+ */
+function logAppError_(action, req, err) {
+  let actor = '';
+  const parts = [];
+  if (err.appCode === 'BAD_USER') {
+    parts.push(`userId=${clip_(req.userId, LOG_CLIP_SHORT)}`);
+    if (action === 'draw') parts.push(`deviceId=${clip_(req.deviceId, LOG_CLIP_SHORT)}`, `fp=${clip_(req.fp, LOG_CLIP_SHORT)}`);
+  } else {
+    const id = String(req.userId == null ? '' : req.userId).trim();
+    if (USER_ID_RE.test(id)) actor = id.toLowerCase();
+    parts.push(clip_(err.message, LOG_CLIP_BODY));
+  }
+  logRejected_(action, actor, err.appCode, parts.join(' '));
+}
+
+/**
+ * ログに残す受け取った値を、先頭 max 文字の1行にする（長い値・改行・制御文字を送られても大丈夫なように）。
+ * 呼ぶ側は「userId=」などの見出しを前に付ける（値が = で始まっても、シートで数式として扱われないように）
+ */
+function clip_(v, max) {
+  const s = typeof v === 'string' ? v : (v === undefined ? '' : JSON.stringify(v));
+  return String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, max);
 }

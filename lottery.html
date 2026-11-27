@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#F3E9E2">
-  <title>特典抽選会</title>
+  <title>特典抽選ページ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=DM+Sans:opsz,wght@9..40,400..800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
@@ -18,7 +18,7 @@
   <main class="wrap">
     <header class="brand">
       <img class="brand-logo" src="assets/logo.png" alt="みんまちDROP for 中之島" width="262" height="160">
-      <h1 id="eventName" class="brand-title">特典抽選会</h1>
+      <h1 id="eventName" class="brand-title">特典抽選ページ</h1>
     </header>
 
     <!-- 抽選の演出（どの画面でも表示） -->
@@ -56,31 +56,32 @@
       <p class="muted small" id="drawingNote" aria-live="polite" hidden>アクセスが集中しています。<br>自動で再試行しています</p>
     </section>
 
+    <!-- 当選（抽選特典）と、はずれ景品（参加賞）。見出しとカードの見出しは lottery.js が出し分ける。景品名は出さない -->
     <section data-view="win" class="panel center" hidden>
-      <p class="result-en result-ja" id="resultHead">当選</p>
+      <p class="result-en result-ja result-msg" id="resultHead">当選おめでとうございます！</p>
       <div class="card result-card">
-        <h2 class="prize" id="prizeName"></h2>
+        <h2 class="prize" id="cardTitle">抽選特典</h2>
         <div id="redeemBox">
-          <p class="muted small">国立国際美術館B1階インフォメーションにお越しいただき、示されたパスワードを入力してください。</p>
+          <p class="muted small">国立国際美術館B1階インフォメーションにお越しいただき、こちらの画面を見せて、示されたパスワードを入力してください。</p>
           <form id="redeemForm" class="form redeem-form" novalidate>
             <label>引換パスワード（半角英数字）
               <input id="redeemPw" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="20">
             </label>
-            <p class="muted small redeem-note">ログイン済みの場合、抽選画面に進むとこの画面が表示されるようになります。</p>
-            <button id="redeemBtn" class="btn btn-primary btn-xl" type="submit">引き換える</button>
+            <p class="muted small redeem-note">入力後、この画面をスタッフに見せて、受け取るボタンを押してください</p>
+            <button id="redeemBtn" class="btn btn-primary btn-xl" type="submit">受け取る</button>
             <p class="error" id="redeemError" role="alert"></p>
+            <p class="muted small redeem-note">一度ページを閉じても、ログイン済であれば抽選画面に進むとこのページが再表示されます。</p>
           </form>
         </div>
         <div id="redeemedBox" hidden>
           <p class="pill pill-done">引換済み</p>
           <p class="muted" id="redeemedText"></p>
-          <p class="muted small">この画面をスタッフに見せて、景品をお受け取りください。</p>
         </div>
       </div>
     </section>
 
     <section data-view="lose" class="panel center" hidden>
-      <p class="result-en result-en-lose result-ja">はずれ</p>
+      <p class="result-en result-en-lose result-ja result-msg">残念！はずれ</p>
       <div class="card result-card">
         <h2 class="h2">ざんねん…</h2>
         <p class="muted">ご参加ありがとうございました。<br>またこの街で会いましょう。</p>
@@ -97,6 +98,7 @@
       <a class="btn js-rally" href="#">スタンプラリーに戻る</a>
     </div>
 
+    <p class="app-version js-app-version" hidden></p>
   </main>
 
   <script src="assets/config.js"></script>
