@@ -67,6 +67,13 @@ const DEFAULT_REDEEM_PASSWORD = '0884'; // Config に REDEEM_PASSWORD 行がな�
 const SELF_MAX_FAIL = 10;
 const SELF_LOCK_SEC = 5 * 60;
 const MAX_LOCK_MIN = 360; // CacheService の保持期間の上限（6時間）
+// 設定（Config・Tiers・Prizes）のキャッシュ秒数（D-28）。Config を変えてから反映されるまで最大この秒数かかる。
+// すぐ反映したいときはエディタで clearSettingsCache を実行する
+const SETTINGS_CACHE_SEC = 30;
+const SETTINGS_CACHE_KEYS = { CONFIG: 'set:config:v1', TIERS: 'set:tiers:v1', PRIZES: 'set:prizes:v1' };
+const CACHE_VALUE_MAX = 100 * 1024; // CacheService の1件の上限（100KB）
+// Users・Winners を文字列書式にしておく行数（setupSheets）。appendRow で ID が数値・日付に化けないように
+const SHEET_FORMAT_ROWS = 5000;
 const PRIZE_KIND_COL = 8;                  // Prizes の「区分」列（H列）
 const CONSOLATION_MARK = 'はずれ';          // 区分がこの値の景品は、P01〜のどれにも当たらなかった人に渡す（はずれ景品）
 
@@ -190,13 +197,15 @@ function apiDraw_(req) {
     let ticketId = '';
     if (prize) {
       ticketId = newTicketId_(winners);
-      appendRowAsText_(wSheet, [ // 引換コード（D列）は発行しない（D-25）
+      // appendRow 1回で追加する（D-28）。割り込まれない追加なので、人が末尾に足した行を上書きしない（#11）。
+      // ID の列が数値・日付に化けないよう、setupSheets で列を文字列書式にしてある
+      wSheet.appendRow([ // 引換コード（D列）は発行しない（D-25）
         ticketId, prize.id, prize.name, '', STATUS.UNREDEEMED, now, '', '', deviceId, userId,
-      ], [COL.WINNERS.USER]);
+      ]);
     }
-    appendRowAsText_(uSheet, [
+    uSheet.appendRow([
       userId, now, 1, prize && !consolation ? '当たり' : 'はずれ', ticketId, points, tier.id, deviceId, fp,
-    ], [COL.USERS.ID]);
+    ]);
     SpreadsheetApp.flush();
     return { prize: prize, consolation: consolation, ticketId: ticketId, details: details };
   }, { action: 'draw', actor: userId, ss: ss, timing: timing });
@@ -494,12 +503,16 @@ function setupSheets() {
     users.setFrozenRows(1);
     console.log('Users シートを作成しました');
   }
-  users.getRange('A:A').setNumberFormat('@');
+  // 抽選は appendRow で行を足す（D-28）。appendRow は値の型をシートが推測するので、ID の列は文字列書式にしておく。
+  // 書式は SHEET_FORMAT_ROWS 行まで先に用意する（足りなければ行を増やす）。空の行は getLastRow に数えられない
+  ensureRows_(users, SHEET_FORMAT_ROWS);
+  ['A:A', 'E:E', 'G:G', 'H:H', 'I:I'].forEach((a1) => users.getRange(a1).setNumberFormat('@')); // userId・ticketId・tierId・deviceId・端末特徴
   users.getRange('B:B').setNumberFormat('yyyy/mm/dd hh:mm:ss');
 
   const winners = ss.getSheetByName(SHEET.WINNERS);
   winners.getRange(1, COL.WINNERS.USER).setValue('userId').setFontWeight('bold');
-  winners.getRange(2, COL.WINNERS.USER, Math.max(winners.getMaxRows() - 1, 1), 1).setNumberFormat('@');
+  ensureRows_(winners, SHEET_FORMAT_ROWS);
+  ['A:A', 'D:D', 'I:I', 'J:J'].forEach((a1) => winners.getRange(a1).setNumberFormat('@')); // ticketId・引換コード・deviceId・userId
 
   const prizes = ss.getSheetByName(SHEET.PRIZES);
   prizes.getRange(1, 7).setValue('当選可能残');
@@ -507,6 +520,18 @@ function setupSheets() {
   prizes.getRange(1, PRIZE_KIND_COL).setValue('区分').setFontWeight('bold');
   fillPrizeFormulas_(ss);
   console.log('準備が完了しました');
+}
+
+/** シートの行数が n 行に満たなければ、末尾に空の行を足す */
+function ensureRows_(sheet, n) {
+  const max = sheet.getMaxRows();
+  if (max < n) sheet.insertRowsAfter(max, n - max);
+}
+
+/** 設定（Config・Tiers・Prizes）のキャッシュを消す。Config を変えてすぐ反映したいとき（緊急停止など）にエディタで実行する */
+function clearSettingsCache() {
+  CacheService.getScriptCache().removeAll(Object.keys(SETTINGS_CACHE_KEYS).map((k) => SETTINGS_CACHE_KEYS[k]));
+  console.log('設定のキャッシュを消しました（次の要求からシートを読み直します）');
 }
 
 /**
@@ -557,7 +582,16 @@ function withLock_(fn, opt) {
   const lock = LockService.getScriptLock();
   const t0 = Date.now();
   if (!lock.tryLock(LOCK_WAIT_MS)) {
-    try { log_(opt.action || 'lock', opt.actor || '', 'BUSY', `wait=${Date.now() - t0}ms`, opt.ss); } catch (e) { /* ログに失敗しても BUSY を返す */ }
+    const action = opt.action || 'lock';
+    const actor = opt.actor || '';
+    const waited = Date.now() - t0;
+    // D-27: 実行ログには必ず出す（エディタの「実行数」で件数と時刻を確認する）。Logs シートへの書き込みは試みるが、失敗してもよい
+    console.warn(`BUSY action=${action} actor=${actor} wait=${waited}ms`);
+    try {
+      log_(action, actor, 'BUSY', `wait=${waited}ms`, opt.ss);
+    } catch (e) {
+      console.warn(`BUSY の Logs への書き込みに失敗 action=${action} actor=${actor}: ${(e && e.message) || e}`);
+    }
     throw appError_('BUSY', '混雑しています。少し待ってからもう一度お試しください');
   }
   const t1 = Date.now();
@@ -575,12 +609,19 @@ function timingText_(t) {
   return `wait=${t.wait}ms hold=${t.hold}ms`;
 }
 
-/** Config シート。ss を渡すと開き直さずに使う */
+/**
+ * Config シート。ss を渡すと開き直さずに使う。
+ * 読み込んだ値は SETTINGS_CACHE_SEC 秒キャッシュする（D-28。変更の反映は最大その秒数遅れる）
+ */
 function getConfig_(ss) {
-  const sheet = (ss || ss_()).getSheetByName(SHEET.CONFIG);
-  const range = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 2);
-  const values = range.getValues();
-  const shown = range.getDisplayValues(); // パスワードは表示どおりの文字列で比べる（0884 が 884 にならないように）
+  const data = cachedSettings_(SETTINGS_CACHE_KEYS.CONFIG, () => {
+    const sheet = (ss || ss_()).getSheetByName(SHEET.CONFIG);
+    const range = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 2);
+    // パスワードは表示どおりの文字列で比べる（0884 が 884 にならないように）
+    return { values: range.getValues(), shown: range.getDisplayValues() };
+  });
+  const values = data.values;
+  const shown = data.shown;
   const cfg = {};
   const disp = {};
   values.forEach((r, i) => {
@@ -623,9 +664,12 @@ function isOpen_(cfg, now) {
 
 /** Tiers シートのボタン一覧（上から順）。最大ポイント（スタンプ数）が空欄なら上限なし */
 function getTiers_(ss) {
-  const sheet = ss.getSheetByName(SHEET.TIERS);
-  if (!sheet) throw appError_('NOT_CONFIGURED', 'Tiers シートがありません（setupSheets を実行してください）');
-  return readRows_(sheet, 5)
+  const rows = cachedSettings_(SETTINGS_CACHE_KEYS.TIERS, () => {
+    const sheet = ss.getSheetByName(SHEET.TIERS);
+    if (!sheet) throw appError_('NOT_CONFIGURED', 'Tiers シートがありません（setupSheets を実行してください）');
+    return readRows_(sheet, 5);
+  });
+  return rows
     .filter((r) => String(r[0]).trim() !== '')
     .map((r) => ({
       id: String(r[0]).trim(),
@@ -634,6 +678,52 @@ function getTiers_(ss) {
       max: r[3] === '' || r[3] === null ? null : Number(r[3]),
       prob: Math.min(Math.max(Number(r[4]) || 0, 0), 100),
     }));
+}
+
+/**
+ * 設定（Config・Tiers・Prizes）の読み込み結果を CacheService に SETTINGS_CACHE_SEC 秒保存して使い回す（D-28）。
+ * キャッシュの読み書きに失敗したらシートから読む（キャッシュがなくても動く）。日付は {$d: ミリ秒} にして保存する。
+ * 1件 CACHE_VALUE_MAX（100KB）を超えそうなら保存しない
+ */
+function cachedSettings_(key, load) {
+  let cache = null;
+  try {
+    cache = CacheService.getScriptCache();
+    const hit = cache.get(key);
+    if (hit) return decodeCells_(JSON.parse(hit));
+  } catch (e) {
+    console.warn(`設定のキャッシュを読めませんでした key=${key}: ${(e && e.message) || e}`);
+  }
+  const data = load();
+  try {
+    const json = JSON.stringify(encodeCells_(data));
+    if (cache && json.length * 3 < CACHE_VALUE_MAX) cache.put(key, json, SETTINGS_CACHE_SEC); // 3倍は UTF-8 の最大バイト数の見積もり
+  } catch (e) {
+    console.warn(`設定のキャッシュに保存できませんでした key=${key}: ${(e && e.message) || e}`);
+  }
+  return data;
+}
+
+function encodeCells_(v) {
+  if (v instanceof Date) return { $d: v.getTime() };
+  if (Array.isArray(v)) return v.map(encodeCells_);
+  if (v && typeof v === 'object') {
+    const o = {};
+    Object.keys(v).forEach((k) => { o[k] = encodeCells_(v[k]); });
+    return o;
+  }
+  return v;
+}
+
+function decodeCells_(v) {
+  if (Array.isArray(v)) return v.map(decodeCells_);
+  if (v && typeof v === 'object') {
+    if (typeof v.$d === 'number') return new Date(v.$d);
+    const o = {};
+    Object.keys(v).forEach((k) => { o[k] = decodeCells_(v[k]); });
+    return o;
+  }
+  return v;
 }
 
 /** スタンプ数に合うボタン（範囲が重なっていたら上の行を優先）。なければ null */
@@ -679,13 +769,6 @@ function newTicketId_(winners) {
     if (!used.has(id)) return id;
   }
   throw new Error('ticketId を作れませんでした');
-}
-
-/** 1行追加する。textCols の列は文字列として保存（"00123" のようなIDが数値に化けないように） */
-function appendRowAsText_(sheet, values, textCols) {
-  const row = sheet.getLastRow() + 1;
-  (textCols || []).forEach((c) => sheet.getRange(row, c).setNumberFormat('@'));
-  sheet.getRange(row, 1, 1, values.length).setValues([values]);
 }
 
 function toDate_(v) {
@@ -750,9 +833,13 @@ function readRows_(sheet, cols) {
   return last < 2 ? [] : sheet.getRange(2, 1, last - 1, cols).getValues();
 }
 
+/** Prizes シートの景品の構成（手入力の列）。キャッシュする（残り数は Winners から数えるのでキャッシュしない） */
 function getPrizes_(ss) {
-  const sheet = ss.getSheetByName(SHEET.PRIZES);
-  return readRows_(sheet, Math.min(PRIZE_KIND_COL, sheet.getMaxColumns()))
+  const rows = cachedSettings_(SETTINGS_CACHE_KEYS.PRIZES, () => {
+    const sheet = ss.getSheetByName(SHEET.PRIZES);
+    return readRows_(sheet, Math.min(PRIZE_KIND_COL, sheet.getMaxColumns()));
+  });
+  return rows
     .filter((r) => r[0] !== '')
     .map((r) => ({
       id: String(r[0]),

@@ -34,26 +34,12 @@
     <!-- メイン -->
     <section data-view="main" hidden>
       <nav class="tabs" role="tablist">
-        <button class="tab active" data-tab="scan" type="button" role="tab">引換</button>
-        <button class="tab" data-tab="stock" type="button" role="tab">在庫</button>
+        <button class="tab active" data-tab="stock" type="button" role="tab">在庫</button>
         <button class="tab tab-right" id="logoutBtn" type="button">ログアウト</button>
       </nav>
 
-      <div data-panel="scan" class="card">
-        <div id="reader" class="reader"></div>
-        <div class="row">
-          <button id="cameraBtn" class="btn" type="button">カメラを起動</button>
-        </div>
-        <form id="codeForm" class="form inline">
-          <label class="grow">引換コード（QRが読めないとき）
-            <input id="codeInput" type="text" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="ABC-DEF">
-          </label>
-          <button class="btn" type="submit">確認</button>
-        </form>
-        <p class="error" id="scanError" role="alert"></p>
-      </div>
-
-      <div data-panel="stock" class="card" hidden>
+      <!-- 旧「引換」タブ（QR 読取・引換コード入力）は v4.0-05 で外した（D-29） -->
+      <div data-panel="stock" class="card">
         <div class="row between">
           <h2 class="h2">在庫一覧</h2>
           <button id="stockRefresh" class="btn btn-small" type="button">更新</button>
@@ -78,20 +64,6 @@
     </section>
   </main>
 
-  <!-- 確認ダイアログ -->
-  <div id="sheet" class="sheet" hidden>
-    <div class="sheet-body card center">
-      <p class="badge" id="sheetBadge"></p>
-      <h2 class="prize" id="sheetPrize"></h2>
-      <p class="muted" id="sheetDetail"></p>
-      <div class="row center">
-        <button id="redeemBtn" class="btn btn-primary btn-xl" type="button">引き渡し完了</button>
-      </div>
-      <button id="sheetClose" class="btn" type="button">閉じて次へ</button>
-    </div>
-  </div>
-
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="assets/config.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/staff.js"></script>

@@ -36,7 +36,7 @@ LP（index.html） → アンケート（survey.html） → 抽選（lottery.htm
 | LP | `https://obayashi-smartcity.github.io/DROP_Lottery/` | 参加者 |
 | スタッフ画面 | `https://obayashi-smartcity.github.io/DROP_Lottery/staff.html` | スタッフ（在庫・ボタン別の集計を見る。PIN でログイン） |
 
-スタッフ画面の「引換」タブ（QR 読取・引換コード入力）は旧方式の名残です。今の参加者画面には QR・引換コードを表示しないため、通常は使いません。
+スタッフ画面は在庫タブだけです（旧方式の「引換」タブ（QR 読取・引換コード入力）は v4.0-05 で外しました）。
 
 ## ファイル構成
 
@@ -83,7 +83,7 @@ GAS のプロジェクトとスプレッドシートは、共有ドライブ「0
 | 混雑・通信エラー時の自動再試行 | `assets/config.js` の `RETRY_TOTAL_MS`（合計の打ち切り、既定 30 秒）・`RETRY_BASE_MS`・`RETRY_MAX_DELAY_MS` |
 | GAS の URL | `assets/config.js` の `GAS_URL`（抽選）・`SURVEY_GAS_URL`（アンケート） |
 
-スプレッドシートの変更はすぐに反映されます（GAS の再デプロイは不要）。
+スプレッドシートの変更は GAS の再デプロイなしで反映されます。ただし **Config・Tiers・Prizes は30秒キャッシュするので、反映まで最大30秒かかります**（受付停止 `ACCEPTING=FALSE` や引換パスワードの変更を含む）。すぐ反映したいときは、抽選GAS のエディタで関数 `clearSettingsCache` を実行してください。
 
 ## スプレッドシートの中身
 
@@ -121,7 +121,7 @@ Responses シートに1回答1行。受信日時・userId・ポイント・tierI
 抽選GAS（DROP_Lottery）：
 
 1. 関数 `setupSecrets` を実行する（初回は権限の承認が必要）。実行ログに表示されるスタッフ PIN を控える。PIN はプロジェクトの設定 > スクリプト プロパティの `STAFF_PIN` で変更できる。
-2. 関数 `setupSheets` を実行する。Tiers・Users シート、Config の `REDEEM_PASSWORD`・`MAX_POINTS`・`REDEEM_MAX_FAIL`・`REDEEM_LOCK_MIN`（行がなければ追加）、Prizes の集計式ができる（何度実行してもデータは消えない）。
+2. 関数 `setupSheets` を実行する（v4.0-05 から Users・Winners の ID の列を文字列書式にし、行数を 5000 まで増やす）。Tiers・Users シート、Config の `REDEEM_PASSWORD`・`MAX_POINTS`・`REDEEM_MAX_FAIL`・`REDEEM_LOCK_MIN`（行がなければ追加）、Prizes の集計式ができる（何度実行してもデータは消えない）。
 3. ウェブアプリとしてデプロイし、URL を `GAS_URL` に貼る。
 
 アンケートGAS（DROP_Lottery_Survey_API）：
