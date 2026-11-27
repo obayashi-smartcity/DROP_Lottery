@@ -31,5 +31,5 @@ window.LOTTERY_CONFIG = {
 
   // 画面のバージョン（GAS のバージョンとは別に管理する。D-52）。画面の右上に小さく出す。
   // 上げるときは、index.html・survey.html・lottery.html の CSS・JS の ?v= もすべて同じ値に変える（README「画面のバージョン」）
-  APP_VERSION: 'v1.0.1',
+  APP_VERSION: 'v1.0.2',
 };

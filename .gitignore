@@ -27,6 +27,16 @@ appsscript.json
 # ---- Claude Code の個人設定 ----
 .claude/settings.local.json
 
+# ---- 画面の確認用のスクリーンショット・出力（手元だけに置く。Pages で公開しない） ----
+Claude outputs/
+
+# ---- 負荷試験のスクリプト（手元だけに置く。公開しない） ----
+tools/loadtest/
+
+# ---- 一時ファイル ----
+*.tmp
+tmp/
+
 # ---- エディタ ----
 .vscode/
 .idea/

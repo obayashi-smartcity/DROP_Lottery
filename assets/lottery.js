@@ -279,24 +279,34 @@
     return String(v == null ? '' : v).normalize('NFKC').trim();
   }
 
+  /**
+   * 受け取りの文言（#redeemError）を出す。retry が true なら混雑時の再試行の案内（エラーの赤字ではなく、
+   * 抽選中の再試行の文言と同じ落ち着いた色。v1.0.2）。空なら欄ごと隠れる（style.css の :empty）
+   */
+  function setRedeemMessage(text, retry) {
+    const el = $('#redeemError');
+    el.textContent = text || '';
+    el.classList.toggle('is-retry', !!retry);
+  }
+
   /** 当選者がスタッフから聞いたパスワードを入れて受け取る（引換） */
   let redeeming = false;
   async function redeem(e) {
     e.preventDefault();
     if (redeeming) return; // 二重送信防止
     const pw = normalizePassword($('#redeemPw').value);
-    if (!pw) { $('#redeemError').textContent = 'パスワードを入力してください'; return; }
+    if (!pw) { setRedeemMessage('パスワードを入力してください'); return; }
     redeeming = true;
     $('#redeemBtn').disabled = true;
-    $('#redeemError').textContent = '';
+    setRedeemMessage('');
     try {
       // 自動再試行は BUSY のときだけ（BUSY なら何も書き込まれていない）
       const res = await L.callWithRetry('redeemSelf', { userId, password: pw }, {
         retryOn: L.RETRY_BUSY_ONLY,
-        onRetry: () => { $('#redeemError').textContent = '混雑しています。自動で再試行しています…'; },
+        onRetry: () => { setRedeemMessage('混雑しています。自動で再試行しています…', true); },
       });
       $('#redeemPw').value = '';
-      $('#redeemError').textContent = '';
+      setRedeemMessage('');
       vibrate([40, 30, 80]);
       render(res);
     } catch (err) {
@@ -306,13 +316,13 @@
           const status = await L.callWithRetry('status', { userId }, { retryOn: L.RETRY_READ });
           if (status.drawn && status.redeemStatus === '引換済み') {
             $('#redeemPw').value = '';
-            $('#redeemError').textContent = '';
+            setRedeemMessage('');
             render(status);
             return;
           }
         } catch (e) { /* 確認できなければ下のエラー表示 */ }
       }
-      $('#redeemError').textContent = err && err.code ? (err.message || '受け取りできませんでした') : RELOAD_TEXT; // 入力欄はそのまま残す
+      setRedeemMessage(err && err.code ? (err.message || '受け取りできませんでした') : RELOAD_TEXT); // 入力欄はそのまま残す（エラーは赤字）
     } finally {
       redeeming = false;
       $('#redeemBtn').disabled = false;
