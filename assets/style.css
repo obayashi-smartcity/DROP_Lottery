@@ -746,7 +746,6 @@ a.btn { text-decoration: none; }
   .result-en-lose { font-size: 26px; }
   .result-card { padding: 14px 18px; }
   #redeemBox > p.small { margin: 4px 0; }
-  .redeem-form .error:empty { display: none; }
   .prize { margin: 0 0 4px; font-size: 21px; line-height: 1.35; }
   .result-card .small { font-size: 12px; line-height: 1.6; }
   .redeem-form { margin: 8px 0 0; gap: 6px; }
@@ -850,3 +849,11 @@ a.btn { text-decoration: none; }
   :root { --opt-box: 16px; }
   .opt input[type="radio"]:checked { box-shadow: inset 0 0 0 2.5px #fff; }
 }
+
+/* =====================================================================
+   v1.0.1（画面のバージョン）：結果画面の「受け取る」ボタンの下の余白
+   エラー欄（#redeemError）は、中身が空のときは表示しない（高さ・余白を持たない）。どの幅でも。
+   エラー文・混雑時の再試行の文言が入ったときは表示され、ボタン → エラー文 → 補足文の間隔は今までどおり
+   （v1.0.0 まではスマホの幅だけ。それより広い幅では空の欄が高さ 1.6em と余白を持ち、ボタンと補足文の間が大きく空いていた）
+   ===================================================================== */
+.redeem-form .error:empty { display: none; }
