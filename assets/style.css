@@ -4,6 +4,7 @@
 
 :root {
   --bg: #F3E9E2;
+  --page-bg: #F3E9E2; /* 画面全体の背景（body だけが使う）。config.js の BG_COLOR が正しい形式なら theme.js が上書きする。既定（フォールバック）はベージュ */
   --surface: #FFFFFF;
   --ink: #000000;
   --ink-2: #3D3D3D;
@@ -34,7 +35,7 @@
 html, body { margin: 0; }
 
 body {
-  background: var(--bg);
+  background: var(--page-bg, #F3E9E2);
   color: var(--ink);
   font-family: var(--font);
   font-size: 16px;
@@ -110,7 +111,6 @@ button { font-family: inherit; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-primary { background: var(--ink); border-color: var(--ink); color: #fff; }
 .btn-xl { width: 100%; min-height: 60px; font-size: 18px; font-weight: 700; margin: 8px 0; }
-.btn-small { min-height: 36px; padding: 6px 14px; font-size: 13px; }
 
 /* 抽選ボタン（黒のピル＋ブラウンの丸矢印） */
 .cta {
@@ -359,19 +359,6 @@ button { font-family: inherit; }
 
 .prize { margin: 6px 0 18px; font-size: 26px; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; }
 
-.qr {
-  width: min(240px, 66vw);
-  margin: 0 auto 14px;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid var(--line-soft);
-  border-radius: 20px;
-}
-.qr svg { display: block; width: 100%; height: auto; }
-
-.code-label { margin: 4px 0 0; font-size: 12px; color: var(--muted); letter-spacing: .1em; }
-.code { margin: 0 0 10px; font-size: 34px; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
-
 .confetti {
   position: fixed;
   inset: 0;
@@ -386,11 +373,7 @@ button { font-family: inherit; }
   .result-card, .result-en, .stage-flash { animation: none !important; transition: none !important; }
 }
 
-/* ---------- スタッフ画面 ---------- */
-
-.staff .wrap { max-width: 560px; }
-.staff .brand-title { font-size: 22px; }
-.staff-info { margin: 4px 0 0; font-size: 13px; color: var(--brown); }
+/* ---------- 入力欄（結果画面の引換パスワード） ---------- */
 
 .form { display: grid; gap: 16px; }
 .form label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; color: var(--brown); }
@@ -404,78 +387,6 @@ button { font-family: inherit; }
   color: var(--ink);
 }
 .form input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
-.form.inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-top: 18px; }
-.form.inline input { width: 100%; min-width: 0; }
-
-.row { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
-.row.between { justify-content: space-between; margin-top: 0; margin-bottom: 14px; }
-.row.center { justify-content: center; }
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin: 8px 0 16px;
-  padding: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--brown);
-}
-.tab {
-  border: 0;
-  background: transparent;
-  color: #fff;
-  border-radius: var(--radius-pill);
-  padding: 9px 18px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.tab.active { background: #fff; color: var(--ink); font-weight: 700; }
-.tab-right { margin-left: auto; opacity: .75; }
-
-.reader { width: 100%; min-height: 8px; border-radius: 20px; overflow: hidden; }
-.reader video { border-radius: 20px; }
-
-.table-wrap { overflow-x: auto; }
-.table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th, .table td { padding: 10px 6px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
-.table th:first-child, .table td:first-child { text-align: left; white-space: normal; }
-.table th { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: .06em; }
-.table tr.zero td { color: var(--ng); }
-
-.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 18px 0 0; }
-.totals div { background: var(--bg); border-radius: 18px; padding: 10px 14px; }
-.totals dt { font-size: 11px; color: var(--brown); }
-.totals dd { margin: 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-.warn { margin-top: 14px; padding: 12px 16px; border-radius: 18px; background: #FBE7D9; font-size: 13px; }
-
-.badge {
-  display: inline-block;
-  margin: 0 0 8px;
-  padding: 6px 18px;
-  border-radius: var(--radius-pill);
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--brown);
-}
-.badge-win { background: var(--c-orange); }
-.badge-ok { background: var(--ok); }
-.badge-ng { background: var(--ng); }
-
-.sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(95, 86, 77, .55);
-}
-.sheet[hidden] { display: none; }
-.sheet-body { width: 100%; max-width: 520px; animation: pop .3s ease both; }
-.sheet .prize { margin-bottom: 8px; }
 
 /* ===== LP・アンケート ===== */
 .summary {
@@ -626,7 +537,6 @@ body { letter-spacing: .03em; }
   letter-spacing: .12em;
 }
 .brand-title { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
-.staff .brand-title { font-size: 20px; }
 
 /* ---------- 文字 ---------- */
 .lead { font-size: 18px; font-weight: 500; line-height: 1.8; letter-spacing: .04em; }
@@ -837,7 +747,6 @@ a.btn { text-decoration: none; }
   .result-en-lose { font-size: 26px; }
   .result-card { padding: 14px 18px; }
   #redeemBox > p.small { margin: 4px 0; }
-  .redeem-form .error:empty { display: none; }
   .prize { margin: 0 0 4px; font-size: 21px; line-height: 1.35; }
   .result-card .small { font-size: 12px; line-height: 1.6; }
   .redeem-form { margin: 8px 0 0; gap: 6px; }
@@ -871,4 +780,100 @@ a.btn { text-decoration: none; }
   .brand { margin-bottom: 6px; }
   .brand-logo { width: 64px; }
   .brand-title { font-size: 18px; }
+}
+
+/* =====================================================================
+   v4.0-07：画面の調整（見出し・結果の文言・アンケートの「その他」・バージョン番号）
+   ===================================================================== */
+/* 結果の見出し（当選おめでとうございます！／残念！はずれ）を1行に収める */
+.result-msg { font-size: 30px; letter-spacing: .02em; }
+/* アンケート：「その他」の自由記述の入力欄（選んだときだけ出す） */
+.q-other { margin-top: 8px; }
+.q-other[hidden] { display: none; }
+/* 画面のバージョン（右上。ページの上端に置き、スクロールすると一緒に流れる。ロゴ・見出しは中央なので重ならない） */
+.app-version {
+  position: absolute;
+  top: calc(6px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  z-index: 5;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: .04em;
+  color: var(--muted);
+  pointer-events: none;
+}
+.app-version[hidden] { display: none; }
+/* 引換済み：「この画面をスタッフに見せて…」を消したので、「引換済み」と日時の間を詰める */
+#redeemedBox .pill-done { display: block; width: fit-content; margin: 2px auto 0; }
+#redeemedText { margin: 10px 0 0; }
+
+@media (max-width: 430px) {
+  .result-msg { font-size: min(24px, 6.2vw); }
+  /* 選択肢が長い設問は1列にする（survey.js が q-options-wide を付ける） */
+  .q-options-wide { grid-template-columns: 1fr; }
+}
+
+/* =====================================================================
+   v1.0.0（画面のバージョン）：アンケートの □・○ の大きさをそろえる
+   ブラウザ任せの描画だと、文の長い行で縮んだり（幅 430px より広いとき）、端末によって選択状態で見え方が変わったりするので、
+   自前で描いて大きさを固定する（縮まない・伸びない）。色は今のアクセント（ブラウン）
+   ===================================================================== */
+:root {
+  --check-white: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --opt-box: 18px;
+}
+.opt input[type="checkbox"],
+.opt input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  flex: 0 0 var(--opt-box);
+  width: var(--opt-box);
+  min-width: var(--opt-box);
+  max-width: var(--opt-box);
+  height: var(--opt-box);
+  min-height: var(--opt-box);
+  max-height: var(--opt-box);
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--brown);
+  background: #fff;
+  cursor: pointer;
+}
+.opt input[type="checkbox"] { border-radius: 4px; }
+.opt input[type="radio"] { border-radius: 50%; }
+.opt input[type="checkbox"]:checked { background: var(--brown) var(--check-white) center / 78% no-repeat; }
+.opt input[type="radio"]:checked { background: var(--brown); box-shadow: inset 0 0 0 3px #fff; }
+.opt input:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+@media (max-width: 430px) {
+  :root { --opt-box: 16px; }
+  .opt input[type="radio"]:checked { box-shadow: inset 0 0 0 2.5px #fff; }
+}
+
+/* =====================================================================
+   v1.0.1（画面のバージョン）：結果画面の「受け取る」ボタンの下の余白
+   エラー欄（#redeemError）は、中身が空のときは表示しない（高さ・余白を持たない）。どの幅でも。
+   エラー文・混雑時の再試行の文言が入ったときは表示され、ボタン → エラー文 → 補足文の間隔は今までどおり
+   （v1.0.0 まではスマホの幅だけ。それより広い幅では空の欄が高さ 1.6em と余白を持ち、ボタンと補足文の間が大きく空いていた）
+   ===================================================================== */
+.redeem-form .error:empty { display: none; }
+
+/* =====================================================================
+   v1.0.2（画面のバージョン）：受け取りの混雑時の再試行の文言は、エラーの赤字ではなく、
+   抽選中の再試行の文言（#drawingNote の .muted）と同じ落ち着いた色にする（lottery.js が .is-retry を付ける）。
+   パスワード違いなどのエラーは今の赤字のまま。並び・間隔はエラーと同じ
+   ===================================================================== */
+.redeem-form .error.is-retry { color: var(--brown); }
+
+/* =====================================================================
+   v1.0.3：背景色を変えても読みやすく・なじむように
+   ===================================================================== */
+/* LP のボタンの下の補足文は、背景色に関係なく読めるようブラウンに（文言は変えない。アンケートの .note はカードの中なので今のまま） */
+.lp .note { color: var(--brown); }
+/* 押せないボタンは、塗り・枠とも白の半透明にして、どの背景色でもなじむようにする（文字の薄さ・丸い矢印は今のまま）。
+   押せるボタンは白の塗り・グレーの枠・黒の文字・ブラウンの矢印なので見分けがつく */
+.tier:disabled {
+  background: rgba(255, 255, 255, .45);
+  border-color: rgba(255, 255, 255, .8);
 }

@@ -1,28 +1,42 @@
-// LP：ユーザーID・ニックネーム・スタンプ数 → スタンプ数に合うボタンを有効にする → アンケートへ
+// LP：URL で受け取ったユーザーID・スタンプ数 → スタンプ数に合うボタンを有効にする → アンケートへ
+// 例: index.html?account_id=<ユーザーID>&point=<スタンプ数>（パラメータ名は config.js）
 (function () {
   const L = window.Lottery;
+  if (L.versionMismatch) return; // 古い HTML と新しい JS が混ざっている（api.js が再読み込みを案内している）
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
+  // 画面の部品が見つからないなど、通信以外のエラー（古い HTML と新しい JS が混ざったときなど）は、技術的な文言ではなく再読み込みを案内する
+  const RELOAD_TEXT = '画面を表示できませんでした。ページを再読み込みしてください。';
   const CODE_KEY = 'drop_lottery_event_code';
-  const USER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/; // GAS 側と同じ
+  // ユーザーID（account_id）は UUID。大文字・小文字を区別せずに受け付け、小文字にそろえる（GAS 側と同じ）
+  const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const POINTS_RE = /^\d{1,9}$/; // 0 以上の整数（上限は GAS の info が返す maxPoints で確認する）
 
   let eventCode = '';
-  let current = null; // { userId, nickname, points }
+  let current = null; // { userId, points }
+  let needReload = false; // 通信以外のエラーのあと（「もう一度試す」でページを読み込み直す）
 
-  /** URL のパラメータ（イベントコード・ユーザーID・ニックネーム・スタンプ数）を読み、アドレスバーからは消す */
+  /** URL のパラメータ（イベントコード・ユーザーID・スタンプ数）を読み、アドレスバーからは消す */
   function readParams() {
     const url = new URL(location.href);
     const p = url.searchParams;
     const out = {
       code: (p.get('c') || '').trim(),
+      hasUser: p.has(CFG.PARAM_USER_ID) || p.has(CFG.PARAM_POINTS),
       userId: (p.get(CFG.PARAM_USER_ID) || '').trim(),
-      nickname: (p.get(CFG.PARAM_NICKNAME) || '').trim().slice(0, 30),
       points: (p.get(CFG.PARAM_POINTS) || '').trim(),
     };
     if (out.code) L.lsSet(CODE_KEY, out.code);
-    ['c', CFG.PARAM_USER_ID, CFG.PARAM_NICKNAME, CFG.PARAM_POINTS].forEach((k) => p.delete(k));
+    ['c', CFG.PARAM_USER_ID, CFG.PARAM_POINTS].forEach((k) => p.delete(k));
     history.replaceState(null, '', url.pathname + (p.toString() ? '?' + p : '') + url.hash);
     return out;
+  }
+
+  /** ユーザーID・スタンプ数が使える形式か。使えなければ null */
+  function validate(userId, points) {
+    const raw = String(points == null ? '' : points).trim();
+    if (!USER_ID_RE.test(userId || '') || !POINTS_RE.test(raw)) return null;
+    return { userId: String(userId).toLowerCase(), points: Number(raw) };
   }
 
   function setEventName(name) {
@@ -32,8 +46,14 @@
   }
 
   function showError(err) {
-    $('#errorText').textContent = (err && err.message) || 'エラーが発生しました';
+    needReload = !(err && err.code); // 通信・GAS のエラーには code がある
+    $('#errorText').textContent = needReload ? RELOAD_TEXT : (err.message || 'エラーが発生しました');
     L.show('error');
+  }
+
+  /** ユーザーID・スタンプ数を受け取れなかったとき（直接開いた・パラメータが不正） */
+  function showNoParam() {
+    L.show('noparam');
   }
 
   function showClosed(info) {
@@ -47,10 +67,9 @@
 
   function renderTiers(tiers, points) {
     const active = L.tierForPoints(tiers, points);
-    $('#sumNick').textContent = current.nickname;
     $('#sumPoints').textContent = points.toLocaleString('ja-JP');
     $('#tierLead').innerHTML = active
-      ? '押せるボタンで抽選に進めます。'
+      ? '獲得数に応じた抽選ボタンが有効になります'
       : 'スタンプが足りないため、<br>今回は抽選に参加できません。';
 
     const list = $('#tierList');
@@ -73,7 +92,6 @@
   function choose(tier) {
     L.setFlow({
       userId: current.userId,
-      nickname: current.nickname,
       points: current.points,
       tierId: tier.id,
       tierLabel: tier.label,
@@ -83,56 +101,56 @@
     location.href = 'survey.html';
   }
 
-  async function start(userId, nickname, points) {
-    current = { userId, nickname, points };
+  async function start(user) {
+    current = user;
     L.show('loading');
     try {
-      const [status, info] = await Promise.all([
-        L.call('status', { userId }),
-        L.call('info', { eventCode }),
-      ]);
-      setEventName(info.eventName);
-      if (status.drawn) { // 抽選済みなら完了画面（結果）へ
+      // 読み取りだけなので、混雑・通信エラーは自動で再試行する（D-26）。status と info は同時に呼ぶ
+      const statusP = L.callWithRetry('status', { userId: user.userId }, { retryOn: L.RETRY_READ });
+      const infoP = L.callWithRetry('info', { eventCode }, { retryOn: L.RETRY_READ });
+      infoP.catch(() => {}); // 抽選済みで info を使わないときに、失敗が未処理のまま残らないように
+      const status = await statusP;
+      if (status.drawn) {
+        // 抽選済みなら、info を待たず（失敗していても）完了画面（結果）へ進む。
+        // 引換のときもリンクから入り直す運用（D-04）で、info の失敗（Tiers の ID の誤り・混雑など）のせいで
+        // 当選者が引換欄にたどり着けなくなるのを防ぐ（D-37）
         L.clearFlow();
-        L.setFlow({ userId, eventCode });
+        L.setFlow({ userId: user.userId, points: user.points, eventCode });
         L.goTo('lottery.html');
         return;
       }
+      const info = await infoP; // 抽選済みでない人は、今どおり info の失敗をエラー画面にする
+      setEventName(info.eventName);
+      // スタンプ数の上限（Config の MAX_POINTS）。古い GAS で maxPoints が返らないときは確認しない
+      if (typeof info.maxPoints === 'number' && user.points > info.maxPoints) { L.clearFlow(); showNoParam(); return; }
       if (!info.codeValid) { L.show('nocode'); return; }
       if (!info.open) { showClosed(info); return; }
-      renderTiers(info.tiers || [], points);
+      renderTiers(info.tiers || [], user.points);
     } catch (err) {
-      if (err.code === 'BAD_USER') { showEntry(err.message); return; }
+      if (err.code === 'BAD_USER') { L.clearFlow(); showNoParam(); return; }
       showError(err);
     }
   }
 
-  function showEntry(message) {
-    $('#entryError').textContent = message || '';
-    L.show('entry');
-  }
-
-  $('#entryForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const userId = $('#userId').value.trim();
-    const nickname = $('#nickname').value.trim();
-    const raw = $('#points').value.trim();
-    const points = Number(raw);
-    if (!USER_ID_RE.test(userId)) { showEntry('ユーザーIDを入力してください（英数字と _ . : @ - が使えます）'); return; }
-    if (!nickname || nickname.length > 30) { showEntry('ニックネームを30文字以内で入力してください'); return; }
-    if (raw === '' || !Number.isInteger(points) || points < 0) { showEntry('スタンプ数を0以上の整数で入力してください'); return; }
-    start(userId, nickname, points);
+  $('#retryBtn').addEventListener('click', () => {
+    if (needReload) { location.reload(); return; }
+    if (current) start(current); else showNoParam();
   });
-
-  $('#changeBtn').addEventListener('click', () => showEntry(''));
-  $('#retryBtn').addEventListener('click', () => (current ? start(current.userId, current.nickname, current.points) : showEntry('')));
 
   // 初期表示
   const params = readParams();
   eventCode = params.code || L.lsGet(CODE_KEY) || '';
-  const flow = L.getFlow();
-  $('#userId').value = params.userId || flow.userId || '';
-  $('#nickname').value = params.nickname || flow.nickname || '';
-  $('#points').value = params.points || (flow.points != null ? flow.points : '');
-  showEntry('');
+  let user;
+  if (params.hasUser) {
+    // 遷移元から来たときは URL の値だけを使う（前回の状態は捨てる）
+    L.clearFlow();
+    user = validate(params.userId, params.points);
+    if (user) L.setFlow({ userId: user.userId, points: user.points, eventCode });
+  } else {
+    // 再読み込みやアンケート・抽選画面から戻ったとき（URL からは消してあるので画面間の状態から復元）
+    const flow = L.getFlow();
+    user = validate(flow.userId, flow.points);
+  }
+  if (user) start(user);
+  else showNoParam();
 })();

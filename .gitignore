@@ -13,15 +13,29 @@
 # clasp を使う場合の認証情報（.clasp.json はプロジェクト設定なので対象外）
 .clasprc.json
 
-# ---- GAS・DB の手元コピー（ソースは共有ドライブで管理。リポジトリには置かない） ----
+# ---- GAS・DB ----
+# GAS のソースは gas/<プロジェクト>/ に置いて管理する（それ以外の場所の手元コピーは除外）
+# ※ 公開リポジトリなので、gas/ にも PIN・パスワード・秘密鍵の値は書かない（スクリプト プロパティ / Config シートに置く）
 *.gs
 appsscript.json
+!gas/*/*.gs
+!gas/*/appsscript.json
 # スプレッドシートの書き出し（参加者のユーザーID等を含みうる）
 *.xlsx
 *.csv
 
 # ---- Claude Code の個人設定 ----
 .claude/settings.local.json
+
+# ---- 画面の確認用のスクリーンショット・出力（手元だけに置く。Pages で公開しない） ----
+Claude outputs/
+
+# ---- 負荷試験のスクリプト（手元だけに置く。公開しない） ----
+tools/loadtest/
+
+# ---- 一時ファイル ----
+*.tmp
+tmp/
 
 # ---- エディタ ----
 .vscode/
