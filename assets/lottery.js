@@ -1,8 +1,11 @@
 // 抽選画面（アンケートの次）と結果・完了画面。抽選APIを呼ぶタイミングと演出はこの画面が制御する
 (function () {
   const L = window.Lottery;
+  if (L.versionMismatch) return; // 古い HTML と新しい JS が混ざっている（api.js が再読み込みを案内している）
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
+  // 画面の部品が見つからないなど、通信以外のエラー（古い HTML と新しい JS が混ざったときなど）は、技術的な文言ではなく再読み込みを案内する
+  const RELOAD_TEXT = '画面を表示できませんでした。ページを再読み込みしてください。';
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const stage = $('#stage');
@@ -24,6 +27,7 @@
   let deviceId = '';
   let drawing = false;
   let pollTimer = null;
+  let needReload = false; // 通信以外のエラーのあと（「もう一度試す」でページを読み込み直す）
 
   /* ---------- 演出 ---------- */
 
@@ -173,7 +177,8 @@
 
   function showError(err) {
     setStage('idle', '?');
-    $('#errorText').textContent = (err && err.message) || 'エラーが発生しました';
+    needReload = !(err && err.code); // 通信・GAS のエラーには code がある
+    $('#errorText').textContent = needReload ? RELOAD_TEXT : (err.message || 'エラーが発生しました');
     L.show('error');
   }
 
@@ -307,7 +312,7 @@
           }
         } catch (e) { /* 確認できなければ下のエラー表示 */ }
       }
-      $('#redeemError').textContent = err.message || '受け取りできませんでした'; // 入力欄はそのまま残す
+      $('#redeemError').textContent = err && err.code ? (err.message || '受け取りできませんでした') : RELOAD_TEXT; // 入力欄はそのまま残す
     } finally {
       redeeming = false;
       $('#redeemBtn').disabled = false;
@@ -316,6 +321,7 @@
 
   $('#redeemForm').addEventListener('submit', redeem);
   $('#retryBtn').addEventListener('click', () => {
+    if (needReload) { location.reload(); return; }
     if (!L.getFlow().tierId) { L.goTo('index.html'); return; }
     init();
   });

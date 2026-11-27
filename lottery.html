@@ -10,9 +10,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=DM+Sans:opsz,wght@9..40,400..800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="assets/style.css">
+  <!-- CSS・JS は ?v=<画面のバージョン> 付きで読み込む（キャッシュで古いファイルと混ざらないように）。
+       画面のバージョンを上げるときは、assets/config.js の APP_VERSION と、3つの HTML の ?v= をすべて同じ値に変える（README） -->
+  <link rel="stylesheet" href="assets/style.css?v=v1.0.0">
 </head>
 <body class="lottery">
+  <!-- 画面のバージョン（右上。config.js の APP_VERSION） -->
+  <p class="app-version js-app-version" hidden></p>
   <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
 
   <main class="wrap">
@@ -98,11 +102,10 @@
       <a class="btn js-rally" href="#">スタンプラリーに戻る</a>
     </div>
 
-    <p class="app-version js-app-version" hidden></p>
   </main>
 
-  <script src="assets/config.js"></script>
-  <script src="assets/api.js"></script>
-  <script src="assets/lottery.js"></script>
+  <script src="assets/config.js?v=v1.0.0"></script>
+  <script src="assets/api.js?v=v1.0.0"></script>
+  <script src="assets/lottery.js?v=v1.0.0"></script>
 </body>
 </html>

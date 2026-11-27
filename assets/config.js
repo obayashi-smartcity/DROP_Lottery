@@ -29,6 +29,7 @@ window.LOTTERY_CONFIG = {
   // 抽選演出の最短時間（ミリ秒）
   DRAW_MIN_ANIMATION_MS: 3000,
 
-  // 画面の下の端（右寄せ）に小さく出すバージョン番号。画面を更新したら変える（空にすると表示しない）
-  APP_VERSION: 'v4.0',
+  // 画面のバージョン（GAS のバージョンとは別に管理する。D-52）。画面の右上に小さく出す。
+  // 上げるときは、index.html・survey.html・lottery.html の CSS・JS の ?v= もすべて同じ値に変える（README「画面のバージョン」）
+  APP_VERSION: 'v1.0.0',
 };

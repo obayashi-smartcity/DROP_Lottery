@@ -2,8 +2,11 @@
 // 例: index.html?account_id=<ユーザーID>&point=<スタンプ数>（パラメータ名は config.js）
 (function () {
   const L = window.Lottery;
+  if (L.versionMismatch) return; // 古い HTML と新しい JS が混ざっている（api.js が再読み込みを案内している）
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
+  // 画面の部品が見つからないなど、通信以外のエラー（古い HTML と新しい JS が混ざったときなど）は、技術的な文言ではなく再読み込みを案内する
+  const RELOAD_TEXT = '画面を表示できませんでした。ページを再読み込みしてください。';
   const CODE_KEY = 'drop_lottery_event_code';
   // ユーザーID（account_id）は UUID。大文字・小文字を区別せずに受け付け、小文字にそろえる（GAS 側と同じ）
   const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -11,6 +14,7 @@
 
   let eventCode = '';
   let current = null; // { userId, points }
+  let needReload = false; // 通信以外のエラーのあと（「もう一度試す」でページを読み込み直す）
 
   /** URL のパラメータ（イベントコード・ユーザーID・スタンプ数）を読み、アドレスバーからは消す */
   function readParams() {
@@ -42,7 +46,8 @@
   }
 
   function showError(err) {
-    $('#errorText').textContent = (err && err.message) || 'エラーが発生しました';
+    needReload = !(err && err.code); // 通信・GAS のエラーには code がある
+    $('#errorText').textContent = needReload ? RELOAD_TEXT : (err.message || 'エラーが発生しました');
     L.show('error');
   }
 
@@ -127,7 +132,10 @@
     }
   }
 
-  $('#retryBtn').addEventListener('click', () => (current ? start(current) : showNoParam()));
+  $('#retryBtn').addEventListener('click', () => {
+    if (needReload) { location.reload(); return; }
+    if (current) start(current); else showNoParam();
+  });
 
   // 初期表示
   const params = readParams();

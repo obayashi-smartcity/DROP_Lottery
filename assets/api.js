@@ -196,6 +196,54 @@
     else a.hidden = true;
   });
 
+  /* ---------- 画面のバージョンの確認（キャッシュで古い HTML と新しい JS が混ざったとき） ---------- */
+  // HTML は CSS・JS を ?v=<画面のバージョン> 付きで読み込む。この api.js の ?v（＝HTML に書かれた版）と、
+  // 読み込まれた config.js の APP_VERSION が違えば、古い HTML（または古い config.js）がキャッシュに残っている。
+  // そのときは再読み込みを案内し、各画面の処理（lp.js など）は動かさない（Lottery.versionMismatch を見て止まる）。
+  // 同じ食い違いのまま2回目に開いたとき（再読み込みしても直らない＝?v の変え忘れなど）は、案内を出さずに進める
+  // （画面が使えなくなるのを防ぐ。進めたあとで画面の部品が足りなければ、各画面が「再読み込みしてください」を出す）
+  const RELOAD_KEY = 'drop_lottery_reload';
+  const RELOAD_TEXT = '画面が新しくなりました。\nページを再読み込みしてください。';
+  const htmlVersion = (() => {
+    try {
+      const s = document.currentScript;
+      return s && s.src ? (new URL(s.src, location.href).searchParams.get('v') || '') : null; // 分からなければ null（確認しない）
+    } catch (e) { return null; }
+  })();
+  let versionMismatch = false;
+  if (htmlVersion !== null && CFG.APP_VERSION && htmlVersion !== CFG.APP_VERSION) {
+    const key = `${htmlVersion || '(なし)'}>${CFG.APP_VERSION}`;
+    let shown = null;
+    try { shown = sessionStorage.getItem(RELOAD_KEY); } catch (e) { /* 保存できない環境 */ }
+    if (shown === key) {
+      console.warn(`画面のバージョンが食い違っています（HTML>config.js: ${key}）。再読み込みしても直らないので、そのまま進めます`);
+    } else {
+      versionMismatch = true;
+      try { sessionStorage.setItem(RELOAD_KEY, key); } catch (e) { /* 保存できない環境 */ }
+      showReloadNotice();
+    }
+  }
+
+  /** 再読み込みの案内（画面全体）。古い style.css でも崩れないよう、スタイルはここに直接書く */
+  function showReloadNotice() {
+    const box = document.createElement('div');
+    box.className = 'reload-notice';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;'
+      + 'padding:24px;background:#F3E9E2;color:#000;text-align:center;font-size:16px;line-height:1.7;';
+    const p = document.createElement('p');
+    p.style.cssText = 'margin:0;white-space:pre-line;';
+    p.textContent = RELOAD_TEXT;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '再読み込み';
+    b.style.cssText = 'min-width:200px;min-height:52px;padding:10px 28px;border:0;border-radius:999px;background:#000;color:#fff;font:inherit;font-weight:700;cursor:pointer;';
+    b.addEventListener('click', () => location.reload());
+    box.appendChild(p);
+    box.appendChild(b);
+    document.body.appendChild(box);
+  }
+
   /** バージョン番号（.js-app-version）を出す。config.js の APP_VERSION が空なら出さない */
   document.querySelectorAll('.js-app-version').forEach((p) => {
     p.textContent = CFG.APP_VERSION || '';
@@ -205,5 +253,6 @@
   window.Lottery = {
     call, callWithRetry, RETRY_READ, RETRY_BUSY_ONLY, ApiError, getDeviceId, getFingerprint, fmtDate, sleep, $, show, lsGet, lsSet,
     getFlow, setFlow, clearFlow, tierForPoints, tierRangeText, goTo,
+    versionMismatch, // true なら各画面の処理は動かさない（再読み込みの案内を出している）
   };
 })();

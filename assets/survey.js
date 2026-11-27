@@ -1,8 +1,11 @@
 // アンケート：設問は assets/survey-config.js。回答はアンケートGASに送り、抽選画面へ進む
 (function () {
   const L = window.Lottery;
+  if (L.versionMismatch) return; // 古い HTML と新しい JS が混ざっている（api.js が再読み込みを案内している）
   const CFG = window.LOTTERY_CONFIG;
   const $ = L.$;
+  // 画面の部品が見つからないなど、通信以外のエラー（古い HTML と新しい JS が混ざったときなど）は、技術的な文言ではなく再読み込みを案内する
+  const RELOAD_TEXT = '画面を表示できませんでした。ページを再読み込みしてください。';
   const QUESTIONS = window.SURVEY_QUESTIONS || [];
   // 選択肢がこの文字数より長い設問は、スマホでも1列に並べる（短い選択肢の設問は2列。style.css）
   const WIDE_OPTION_CHARS = 16;
@@ -168,7 +171,7 @@
       L.goTo('lottery.html');
     } catch (err) {
       $('#sendingNote').hidden = true;
-      $('#surveyError').textContent = err.message || '送信できませんでした';
+      $('#surveyError').textContent = err && err.code ? (err.message || '送信できませんでした') : RELOAD_TEXT;
       L.show('form');
       $('#submitBtn').disabled = false;
       sending = false;
